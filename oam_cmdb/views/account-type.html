@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>账号类型管理</title>
+{{template "header.tpl" .}}
+</head>
+<body>
+<div class="container">
+    <div style="border-left:solid 3px #ddd;padding-left:10px;margin-bottom:20px;color: #676a6c;">
+      <h2 style="font-weight: 200;">账号类型作用</h2>
+      <p><small>账号默认属性有:账号、密码、地址(URL)和备注，如果需要其他属性可通过自定义账号类型来扩展</small></p>
+    </div>
+    <div id="toolbar" style="padding-bottom:10px;text-align: right; ">
+      <button class="btn btn-green" onclick="openTypeDlg()">新增</button>
+    </div>
+    <div class="bigtable">
+      <table id="typeGrid" style="width: 100%;min-height: 300px;" >
+      </table>
+    </div>
+</div>
+<!-- 账号类型编辑窗口 -->
+<div title="编辑账号类型" class="easyui-dialog formDiv" id="typeDlg" style="width: 600px;height: 500px;" 
+data-options="resizable:true,modal:true,closed:true,cache:false,buttons: [{
+    text:'保存',iconCls:'icon-ok',handler:saveType},
+    {text:'取消', handler:function(){
+       $('#typeDlg').dialog('close');
+   }}]">
+    <form id="typeFrm" method="post">
+        <div class="inputctl"> 
+            <input type="hidden" id="typeId" name="typeId">
+            <input name="typeName" id="typeName" class="easyui-textbox" 
+            data-options="validateOnCreate:false,required:true,maxLength:30,label:'类型名称：',width:'100%',labelWidth:'85px',labelPosition:'top'">
+        </div>
+        <div class="inputctl">
+            <p style="padding-bottom: 10px;">动态属性:</p>
+            <table id="fieldGrid" style="width: 100%;min-height: 220px;">
+            </table>
+        </div>
+    </form>
+</div>
+
+<div id="typeToolbar" style="background-color: #fafafa;text-align: right;">
+    <a href="#" onclick="openFieldEditDlg(0)" class="icon-link" style="color:#1ab394" title="新增属性"><i class="fa fa-plus"></i></a>
+    <a href="#" onclick="openFieldEditDlg(1)" class="icon-link" style="color:#1ab394" title="编辑属性"><i class="fa fa-edit"></i></a>
+    <a href="#" onclick="delField()" id="del-link" class="icon-link" style="color:#ec4758" title="删除属性"><i class="fa fa-trash"></i></i></a>
+</div>
+
+<div title="编辑类型属性" class="easyui-dialog formDiv" id="fieldEditDlg" style="width: 580px; min-height: 300px;" 
+data-options="resizable:true,modal:true,closed:true,cache:false,buttons: [{
+    text:'保存',iconCls:'icon-ok',handler:addField},
+    {text:'取消', handler:function(){
+       $('#fieldEditDlg').dialog('close');
+   }}]">
+    <form id="fieldEditForm" name="fieldEditForm">
+        <div class="inputctl">
+          <input type="hidden" name="fieldId" id="fieldId">
+            <input class="easyui-textbox" id="fieldName" name="fieldName" data-options="validateOnCreate:false,
+            required:true,validType:['length[2,30]','unnormal'],label:'属性名称：',width:'100%',labelWidth:'95px'">
+        </div>
+        <div class="inputctl">
+          <input class="easyui-textbox" id="fieldKey" name="fieldKey" data-options="validateOnCreate:false,
+          required:true,validType:'fieldKey',label:'属性标识：',width:'100%',labelWidth:'95px',prompt:'由字母或下划线组成,长度3 - 30'">
+        </div>
+        <div class="inputctl">
+          <select name="valueType" id="valueType" class="easyui-combobox" data-options="valueField: 'value',textField: 'text',
+          data:valueTypes,value:0,editable:false,label:'值类型：',width:'100%',labelWidth:'95px',onChange:valueTypeChange">
+        </select>
+        </div>
+        <div class="inputctl">
+          <input class="easyui-numberbox" id="sort" name="sort" data-options="validateOnCreate:false,
+         width:'90%',label:'排序：',labelWidth:'95px',value:1,min:0,max:100,required:true">
+        </div>
+        <div class="inputctl">
+          <input class="easyui-numberbox" id="maxLen" name="maxLen" data-options="validateOnCreate:false,
+         width:'90%',label:'最大字数/值：',labelWidth:'95px'">
+         <a href="#" class="easyui-tooltip icon-link icon-help" title="适用于值类型为数字或文本,分别表示最大值和最大字数"></a>
+        </div>
+        <div class="inputctl">
+          <input class="easyui-textbox" id="valueRule" name="valueRule" data-options="validateOnCreate:false,
+         label:'值规则：',validType:'maxLength[300]',width:'90%',labelWidth:'95px'">
+          <a href="#" id="valRuleTip" class="icon-link icon-help"></a>
+        </div>
+        <div class="inputctl">
+            <input class="easyui-checkbox" id="fieldRequired" name="fieldRequired" data-options="labelWidth:'95px'" value="true" label="是否必填：">
+        </div>
+        <div class="inputctl">
+            <input class="easyui-checkbox" id="fieldCrypt" name="fieldCrypt" data-options="labelWidth:'95px'" value="true" label="是否加密:">
+        </div>
+    </form>
+  </div>
+
+<script type="text/javascript">
+ var valueTypes=[{"value":0,"text":"文本"},{"value":1,"text":"布尔"},
+    {"value":2,"text":"数字"},{"value":3,"text":"可选值"},{"value":4,"text":"文件"}];
+
+$.extend($.fn.validatebox.defaults.rules, {
+  fieldKey: {
+        validator: function(value, param){
+           var ok= /^[a-zA-Z][a-zA-Z_]{2,29}$/.test(value);
+           if(!ok){
+             return false;
+           }
+           var keywords=["accountname","projid","accountid","accounttype","fielduser","fieldpwd","fieldurl","hostname","fieldremark","fieldrepwd","sort"];
+           lowerVal=value.toLowerCase();
+           return $.inArray(lowerVal,keywords)==-1;
+        },
+        message: '由字母或下划线组成,长度3 - 30.且不能是系统关键字'
+    }
+});
+$(document).ready(function() {
+  $('#typeGrid').datagrid({
+        toolbar:'#toolbar',
+        idField:'typeId',
+        singleSelect:true,
+        fitColumns:true,
+        url:'/account/typelist',
+        border:false,
+        loadFilter:dataGridNoPagerFilter,
+        scrollbarSize: 0,
+        autoRowHeight:false,
+        columns:[[
+            {field:'typeId',title:'ID',width:100,fixed:true},
+            {field:'typeName',title:'类型名称',width:300},
+            {field:'createTime',title:'创建时间',width:150,fixed:true},
+            {field:'opt',title:'操作',width:150,fixed:true,align:'center',formatter:actionFmt}
+        ]]
+    });
+
+    $('#typeGrid').datagrid('getPanel').addClass("lines-bottom");
+
+    $('#fieldGrid').datagrid({
+        toolbar:'#typeToolbar',
+        idField:'fieldId',
+        singleSelect:true,
+        fitColumns:true,
+        autoRowHeight:false,
+        columns:[[
+            {field:'fieldId',hidden:true},
+            {field:'fieldName',title:'名称',width:'30%'},
+            {field:'fieldKey',title:'标识',width:'28%'},
+            {field:'valueType',title:'值类型',width:'15%',align:'center',formatter: valueTypeFmt},
+            {field:'sort',title:'排序',width:'10%',align:'center'},
+            {field:'isRequired',title:'必填',width:'11%',align:'center',formatter: boolFmt},
+            {field:'isCiphertext',title:'加密',width:'10%',align:'center',formatter: boolFmt}
+        ]]
+    });
+
+    $('#valRuleTip').tooltip({
+      content:'JSON格式,根据值类型决定,示例:<br>可选值:[{"text":"选项1","id":1},{"text":"选项2","id":2}]或["值1","值2"]'+
+      '<br>文本验证规则: {"pattern":"\w{2,8}"}<br>文件(限定文件类型):.jpg,.doc,image/*'
+    });
+   
+});
+
+var typeIsUsed=false;
+//打开类型编辑框
+function openTypeDlg(opt){
+    $('#typeFrm').form('resetValidation');
+    //编辑
+    if(opt>0){
+      $.getJSON("/account/gettype?typeid="+opt,function(result){
+        handleJsonResult(result,function(data){
+          $('#typeFrm').form('load',data.type);
+          typeIsUsed=data.isUsed;
+          //console.log(data.type.fields);
+          $('#typeDlg').dialog('open');
+          $('#fieldGrid').datagrid("loadData",data.type.fields);
+        });
+      });
+    }else{
+      typeIsUsed=false;
+      $('#typeFrm').form('clear');
+      $('#typeDlg').dialog('open');
+      $('#fieldGrid').datagrid("loadData",[]);
+    }
+   
+}
+function valueTypeChange(newValue, oldValue){
+  if(newValue!=0){
+    $('#fieldCrypt').checkbox("uncheck");
+  }
+  if(newValue==4){
+    $('#maxLen').textbox('setValue','');
+    $('#valueRule').textbox('setValue','');
+  }
+}
+//打开动态属性编辑框
+function openFieldEditDlg(opt){
+    $('#fieldEditForm').form('reset');
+    $('#fieldEditForm').form('resetValidation');
+    if(opt==1){
+      var $fieldGrid=$('#fieldGrid');
+      var selectRow=$fieldGrid.datagrid('getSelected');
+      if(selectRow==null){
+        showWarn("请选择要编辑的属性");
+        return;
+      }
+      $('#fieldEditForm').form('load',selectRow);
+      if (selectRow.isRequired){
+        $('#fieldRequired').checkbox("check");
+      }
+      if (selectRow.valueType==0&&selectRow.isCiphertext){
+        $('#fieldCrypt').checkbox("check");
+      }
+      $('#fieldName').textbox('readonly',typeIsUsed);
+      $('#fieldKey').textbox('readonly',typeIsUsed);
+      if (selectRow.valueType==1||selectRow.valueType==3||selectRow.valueType==4) {
+        $('#maxLen').textbox('readonly',true);
+      }
+     // console.log(selectRow);
+      //$('#valueType').combobox('setValue',selectRow.valueType);
+    }else{
+      $('#fieldId').val("");
+      $('#fieldName').textbox('readonly',false);
+      $('#fieldKey').textbox('readonly',false);
+      $('#maxLen').textbox('readonly',false);
+    }
+    $('#fieldEditDlg').dialog('open');
+    enableClear("fieldEditForm");
+}
+
+function actionFmt(value,row,index){
+      return '<a href="#" onclick="openTypeDlg('+row.typeId+')" class="btn btn-green btn-xs">编辑</a>'+
+      '&nbsp;<a href="#" onclick="delType('+row.typeId+')" class="btn btn-gray btn-xs">删除</a>';
+}
+
+function valueTypeFmt(value,row,index){
+    var text="";
+    $.each(valueTypes,function(index,item){
+      if(item.value==value){
+        text=item.text;
+        return false;
+      }
+    })
+    return text;
+}
+
+function delType(typeId){
+      $.messager.confirm('确认对话框', '删除不可恢复，确认要该类型吗', function(r){
+          if (r){
+              $.post("/account/deltype",{'id':typeId},function(result){
+                  handleJsonResult(result,function(data){
+                    toast("删除成功");
+                    $('#typeGrid').datagrid('reload');
+                  });
+              },"json");
+          }
+      });
+  }
+
+function delField(){
+  if(typeIsUsed){
+    toast("类型已被使用不可删除属性");
+    return;
+  }
+  var $fieldGrid=$('#fieldGrid');
+  var selectRow=$fieldGrid.datagrid('getSelected');
+  if(selectRow==null)
+    return;
+  fid=selectRow.FieldId;
+  var rowIndex=$fieldGrid.datagrid('getRowIndex',selectRow);
+  $fieldGrid.datagrid('deleteRow', rowIndex)
+}
+
+function addField(){
+  var isValid=$('#fieldEditForm').form('validate');
+  if (!isValid){
+      return false;
+  }
+
+  var rowData={};
+  var fieldId=$('#fieldId').val();
+  rowData.fieldKey=$.trim($('#fieldKey').textbox('getValue'));
+  rowData.fieldName=$.trim($('#fieldName').textbox('getValue'));
+ 
+  var $fieldGrid=$('#fieldGrid');
+  var allFields=$fieldGrid.datagrid('getRows');
+  var isExistErrmsg="";
+  if(fieldId==""){
+      rowData.fieldId=allFields.length>0?(0-allFields.length-1):-1;
+  }else{
+      rowData.fieldId=parseInt(fieldId);
+  }
+
+  //检查重复
+  if(allFields.length>0){
+      $.each(allFields,function(i,elem){
+          if(elem.fieldId!=fieldId){
+              if(elem.fieldKey==rowData.fieldKey){
+                  isExistErrmsg="标识重复";
+                  return false;
+              }
+              if(elem.fieldName==rowData.fieldName){
+                  isExistErrmsg="名称重复";
+                  return false;
+              }
+          }
+      });
+      if(isExistErrmsg!=""){
+          toast(isExistErrmsg);
+          return false;
+      }
+  }
+  rowData.sort=parseInt($('#sort').numberbox('getValue'));
+
+  var valueType=$('#valueType').combobox('getValue');
+  rowData.valueType=valueType==""?0:parseInt(valueType);
+  rowData.valueRule=$.trim($('#valueRule').textbox('getValue'));
+  if (rowData.valueType==3) {
+    if (rowData.valueRule=="") {
+      toast("请在值规则内输入可选值列表");
+      return false;
+    }
+    //3种格式：x1,x2,x3 或 ["x1","x2","x3"] 或[{"id":1,"text":"x1"},{"id":2,"text":"x2"}]
+    if(rowData.valueRule.charAt(0)=="["&&rowData.valueRule.endsWith("]")){
+      try {
+       var valueObj=JSON.parse(rowData.valueRule);
+       if(!$.isArray(valueObj)){
+        toast("值规则应是一个JSON数组");
+        return false;
+       }
+       if(rowData.valueRule.indexOf("\"id\":")>0){
+        for(let s of valueObj){
+          if(s.id==undefined||s.id==null||s.text==undefined||s.text==null){
+            toast("值规则格式错误");
+            return false;
+          }
+        }
+       }else{
+        for(let s of valueObj){
+          let t=$.type(s)
+          if(s!="string"&&s!="number"&&s!="boolean"){
+            toast("值规则格式错误");
+            return false;
+          }
+        }
+       }
+      }catch(e) {
+        toast("值规则格式错误");
+        return false;
+      }
+    }else{
+      rowData.valueRule=JSON.stringify(rowData.valueRule.split(","));
+    }
+  }else if (rowData.valueType==4) {
+    if (rowData.valueRule!="") {
+      var reg=/^((\.[0-9a-z]{2,4})|([a-z]+\/[a-z\-\.]+))/i
+      var fileTypes=rowData.valueRule.split(",")
+      for(let f of fileTypes){
+        if(!reg.test(f)){
+          toast("值规则格式错误");
+          return false;
+        }
+      }
+    }
+  }
+
+  rowData.isCiphertext=rowData.valueType==0?isCheck('fieldCrypt'):false;
+  rowData.isRequired=isCheck('fieldRequired');
+  if (rowData.valueType==0||rowData.valueType==2) {
+    var maxLen=$('#maxLen').numberbox('getValue');
+    if (maxLen){
+      rowData.maxLen=parseInt(maxLen);
+    }else{
+      //字符型,给默认长度
+      if(rowData.valueType==0){
+        rowData.maxLen=250;
+      }
+    }
+  }
+  console.log(rowData);
+  if(fieldId!=""){
+      var rowIndex=$fieldGrid.datagrid('getRowIndex',rowData.fieldId);
+      $fieldGrid.datagrid('updateRow', {
+          index: rowIndex,
+          row: rowData
+      })
+  }else{
+      $fieldGrid.datagrid('appendRow',rowData);
+  }
+  $('#fieldEditDlg').dialog('close');
+}
+
+function saveType(){
+  var isValid=$('#typeFrm').form('validate');
+  if (!isValid){
+      return false;
+  }
+  var typeData={};
+  var typeId=$('#typeId').val();
+  if(typeId!=""){
+    typeData.TypeId=parseInt(typeId);
+  }
+  typeData.TypeName=$.trim($('#typeName').val());
+  var allFields=$('#fieldGrid').datagrid('getRows');
+  if(allFields.length>0){
+    typeData.Fields=allFields;
+    $.each(typeData.Fields,function(i,ele){
+      if(ele.fieldId<0){
+        ele.fieldId=0
+      }
+    });
+  }
+  $.ajax({
+        type: "POST",
+        url: "/account/savetype",
+        contentType: "application/json; charset=utf-8",
+        data:  JSON.stringify(typeData),
+        dataType: "json",
+        success: function (result) {
+          if(result.status==200){
+            toast('保存成功');
+            $('#typeDlg').dialog('close');
+            $('#typeGrid').datagrid('reload');
+          }else{
+            showError(result.message);
+          }
+        }
+    });
+}
+
+</script>
+</body>
+</html>

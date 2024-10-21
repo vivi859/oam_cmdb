@@ -1,0 +1,53 @@
+<div class="acct-detail">
+    <div>   
+        <label>账号类型：</label> {{if eq 0 .account.TypeId}}无{{else}}{{$.type.TypeName}}{{end}}
+    </div>
+    <div>   
+        <label>所属项目：</label>{{or .projs "无"}}
+    </div>
+    <div>
+        <label>名称：</label>{{.account.AccountName}}
+    </div>
+    <div>
+        <label>账号：</label>{{.account.FieldUser}}
+    </div>
+    {{if .account.FieldPwd}}
+    <div>
+        <label>密码：</label>*** &nbsp;<button onclick="decryptAndCopy('{{.account.FieldPwd}}')" class="btn btn-green btn-xs">复制</button>
+    </div>
+    {{end}}
+    {{if .account.FieldUrl}}
+    <div>
+        <label>地址(URL)：</label>{{.account.FieldUrl}}
+    </div>
+    {{end}}
+    {{if .hostName}}
+    <div>
+        <label>所属主机：</label>{{.hostName}}
+    </div>
+    {{end}}
+    {{if .account.FieldRemark}}
+    <div>
+        <label>备注：</label>{{.account.FieldRemark}}
+    </div>
+    {{end}}
+    {{if lt 0 .account.TypeId}}
+        {{range .type.Fields}}
+        <div>
+            <label>{{.FieldName}}：</label>
+            {{if .FieldValue}} 
+                {{if .IsCiphertext }} 
+                *** &nbsp;<button onclick="decryptAndCopy('{{.FieldValue}}')" class="btn btn-green btn-xs">复制</button>
+                {{else if eq 4 .ValueType}} 
+                <a href="{{.FieldValue}}" style="color:#1c84c6;text-decoration:underline">{{.FieldTextValue}}</a>
+                {{else}}
+                    {{.FieldTextValue}}
+                {{end}}
+            {{end}}
+        </div>
+        {{end}}
+    {{end}}
+    <div>
+        <label>关联账号：</label>{{or .relAccounts "无"}}
+    </div>
+</div>

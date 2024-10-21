@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>账号编辑</title>
+{{template "header.tpl" .}}
+<script type="text/javascript" src="../static/js/account.js"></script>
+<style type="text/css">
+	.tagbox-label:hover{cursor:pointer}
+</style>
+</head>
+<body style="background-color: #fff;padding: 0;">
+<form id="accountFrm" method="post" class="formDiv">
+    <input type="hidden" id="act" value="{{.act}}">
+    <input type="hidden" name="accountId" id="accountId" value="{{.account.AccountId}}">
+    <input type="hidden" name="hostId" id="hostId" value="{{.account.HostId}}">
+    <div class="inputctl">   
+        <select name="typeId" id="typeId" class="easyui-combobox" data-options="editable:false,
+        label:'账号类型：',width:'90%',labelWidth:'110',panelMaxHeight:200,readonly:true">
+        {{if eq 0 .account.TypeId}}<option value="0"selected="selected">无</option>
+        {{else}}<option value="{{.type.TypeId}}" selected="selected">{{$.type.TypeName}}</option>
+        {{end}}
+        </select>
+    </div>
+    <div class="inputctl">   
+        <select name="projId" id="projId" class="easyui-combobox" data-options="editable:false,
+        label:'所属项目：',width:'90%',labelWidth:'110',panelMaxHeight:200,multiple:true,value:{{.account.ProjIds.ToJSONString}}">
+        <option value="0">无</option>
+        {{range $key, $val := .projs}} <option value="{{$key}}">{{$val}}</option>{{end}}
+        </select>
+    </div>
+    <div class="inputctl">
+        <input name="accountName" id="accountName" value="{{.account.AccountName}}" class="easyui-textbox required" data-options="required:true,label:'名称：',labelWidth:'110',width:'90%',validType:'maxLength[100]'">
+    </div>
+    <div class="inputctl">
+        <input name="fieldUser" id="fieldUser" value="{{.account.FieldUser}}" class="easyui-textbox" data-options="label:'账号：',labelWidth:'110',width:'90%',validType:'maxLength[100]'">
+    </div>
+    <div class="inputctl">
+        <input type="hidden" id="oldFieldPwd" value="{{.account.FieldPwd}}">
+        <input name="fieldPwd" id="fieldPwd" value="{{.account.FieldPwd}}" class="easyui-passwordbox" data-options="onChange:fieldPwdChange,label:'账号密码：',labelWidth:'110',width:'90%',validType:'maxLength[150]'">
+    </div>
+    {{if eq .act "edit"}}
+    <div class="inputctl">
+        <input name="fieldRePwd" id="fieldRePwd" class="easyui-passwordbox" data-options="readonly:true,label:'重复密码：',labelWidth:'110',width:'90%',invalidMessage:'两次密码不相同'" validType="equals['#fieldPwd']">
+    </div>
+    {{end}}
+    <div class="inputctl">
+        <input name="fieldUrl" id="fieldUrl" value="{{.account.FieldUrl}}" class="easyui-textbox" data-options="label:'地址(URL)：',labelWidth:'110',width:'90%',validType:'maxLength[255]'">
+    </div>
+    {{if .hostName}}
+    <div class="inputctl">
+        <input name="hostName" value="{{.hostName}}" class="easyui-textbox" data-options="label:'所属主机：',labelWidth:'110',width:'90%',readonly:true">
+    </div>
+    {{end}}
+    <div class="inputctl">
+        <textarea name="fieldRemark" id="fieldRemark" class="easyui-textbox" 
+        data-options="label:'备注：',labelWidth:'110',width:'90%',multiline:true,validType:'maxLength[800]'" style="height: 60px;">{{.account.FieldRemark}}</textarea>
+    </div>
+    <div id="fieldOtherWrapper">
+
+    </div>
+    <div class="inputctl">
+        <input class="easyui-tagbox" id="relAccountIds" data-options="label:'关联账号：',labelWidth:'110',width:'90%',buttonText: '新增',
+        valueField: 'id',
+		textField: 'text',
+		limitToList: true,
+        {{if .account.RelAccountIds}}value:{{.account.RelAccountIds.ToJSONString}},{{end}}
+        onClickButton: function(){
+            $('#accountFindDlg').dialog('open');
+        },
+        onClickTag:function(value){
+            showDetail(value)
+        }">
+    </div>
+</form>
+
+<div id="relViewDlg" class="easyui-window" title="账号详情" style="width:95%;height:420px"
+data-options="collapsible:false,minimizable:false,maximizable:false,closed:true,draggable:false,modal:false">
+</div>
+{{template "account-find.tpl" .}}
+<div id="uploadFileWin" class="none pd20">
+    <input type="file" accept="" id="uploadfile">
+</div>
+<script type="text/javascript">
+    
+    var fields=[];
+    {{if .type.Fields}} fields=$.parseJSON({{ .type.Fields | json }});{{end}}
+
+    var relAccounts=[];
+    {{if .relAccounts}}relAccounts=$.parseJSON({{ .relAccounts | json }});{{end}}
+
+    $(function(){
+        if (fields.length>0){
+            fieldCache[{{.account.TypeId}}]=fields;
+            createOtherField(fields,"fieldOtherWrapper");
+        }
+
+        if (relAccounts.length>0){
+            $('#relAccountIds').tagbox('loadData',relAccounts);
+        }
+    });  
+
+    function fieldPwdChange(newValue, oldValue){
+        var oldPwd=$('#oldFieldPwd').val();
+        if(newValue!=oldPwd){
+            $('#fieldRePwd').passwordbox('readonly',false);
+           // $('#fieldRePwd').textbox('enableValidation');
+        }else{
+            $('#fieldRePwd').passwordbox('readonly',true);
+        }
+    }
+</script>
+<script type="text/javascript" src="../static/js/jsencrypt.js"></script>
+</body>
+</html>

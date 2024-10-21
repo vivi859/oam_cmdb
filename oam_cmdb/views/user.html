@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>用户管理</title>
+{{template "header.tpl" .}}
+<style type="text/css">
+
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="pagenav">
+    系统管理 > 用户
+  </div>
+    <div id="toolbar"  style="margin-bottom: 10px;padding: 8px;">
+      <form style="display:inline-block" id="searchForm">
+        <select id="condi-role">
+          <option value="">-全部角色-</option>
+          {{range $val := .roleList}} <option value="{{$val.RoleCode}}">{{$val.RoleName}}</option>{{end}}
+        </select>
+        <input type="text" id="condi-keyword" class="textbox" placeholder="用户名/姓名" maxlength="30">
+        <button class="btn btn-green" onclick="searchUser()" type="button">查询</button>
+        <button class="btn btn-gray" onclick="resetForm('searchForm')" type="button">清空</button>
+        </form>
+      <div class="fr">
+        <button class="btn btn-green" onclick="openuserDlg(0)" perm="USER_MGT:SAVE">新增</button>
+        <button class="btn btn-kermesinus" onclick="resetPwd()" perm="USER_MGT:RESETPWD">重置密码</button>
+      </div>
+    </div>
+    <div class="bigtable">
+      <table id="userGrid" style="width: 100%;min-height: 600px;" >
+      </table>
+    </div>
+</div>
+<!-- 用户资料编辑窗口 -->
+<div title="编辑用户信息" class="easyui-dialog formDiv" id="userDlg" style="width: 500px; height: 400px;" 
+data-options="resizable:true,modal:true,top:50,closed:true,cache:false,buttons: [
+    {text:'保存',iconCls:'icon-ok',handler:saveUser},
+    {text:'取消', handler:function(){$('#userDlg').dialog('close');}}]">
+   <form id="userFrm" method="post">
+     <input type="hidden" id="userId" name="userId">
+    <div class="inputctl"> 
+      <input name="userName" id="userName" class="easyui-textbox" data-options="validateOnCreate:false,required:true,validType:'username',label:'用户名：',
+      width:'95%',labelWidth:'85px',prompt:'由字母,数字或_@.组成,长度3-30个字符'">
+    </div>
+    <div class="inputctl passwd">
+      <input name="passwd" id="passwd" class="easyui-passwordbox" data-options="validateOnCreate:false,required:true,
+      label:'密码：',labelWidth:'85px',width:'95%',prompt:'密码6-30个字符,不含空格'" validType="password">
+    </div>
+    <div class="inputctl passwd">
+      <input name="rePasswd" id="rePasswd" class="easyui-passwordbox" data-options="validateOnCreate:false,required:true,
+      label:'重复密码：',labelWidth:'85px',width:'95%',invalidMessage:'两次密码不相同'" validType="equals['#passwd']">
+    </div>
+    <div class="inputctl"> 
+      <input name="realName" id="realName" class="easyui-textbox" data-options="validateOnCreate:false,required:true,
+      validType:'maxLength[30]',label:'姓名：',width:'95%',labelWidth:'85px'">
+    </div>
+    <div class="inputctl"> 
+      <select name="roleCode" id="roleCode" class="easyui-combobox" data-options="validateOnCreate:false,required:true,editable:false,panelHeight:180,
+      label:'角色：',width:'95%',labelWidth:'85px'">
+      <option value="">选择角色</option>
+        {{range $val := .roleList}} <option value="{{$val.RoleCode}}">{{$val.RoleName}}</option>{{end}}
+      </select>
+    </div>
+    <div class="inputctl"> 
+      <select name="userStatus" id="userStatus" class="easyui-combobox" data-options="required:true,label:'状态：',width:'95%',labelWidth:'85px'">
+        <option value="1">正常</option>
+        <option value="0">禁用</option>
+        <option value="2">锁定</option>
+      </select>
+    </div>
+    </form>
+</div>
+
+<script type="text/javascript">
+  var funcodes=["USER_MGT:*"];
+  var roles;
+$(document).ready(function() {
+  perms=loadPerms(funcodes);     
+  $('#userGrid').datagrid({
+        idField:'userId',
+        singleSelect:true,
+        fitColumns:true,
+        autoRowHeight:false,
+        url:'/user/find',
+        border:false,
+        loadFilter:dataGridNoPagerFilter,
+        scrollbarSize: 0,
+        pagination:false,
+        columns:[[
+            {field:'userId',title:'ID',hidden:true},
+            {field:'userName',title:'用户名',width:'25%'},
+            {field:'realName',title:'姓名',width:'25%'},
+            {field:'roleCode',title:'角色',width:'15%',formatter:roleFmt},
+            {field:'userStatus',title:'状态',width:'10%',formatter:statusFmt},
+            {field:'createTime',title:'注册时间',width:'15%'},
+            {field:'opt',title:'操作',width:'10%',fixed:true,align:'center',formatter:actionFmt}
+        ]]
+    });
+
+    $('#userGrid').datagrid('getPanel').addClass("lines-bottom");
+    filterPermElements();
+    roles=getSelectorData('condi-role')
+});
+
+//打开编辑框
+function openuserDlg(opt){
+  $('#userFrm').form('resetValidation');
+  $('#userFrm').form('clear');
+  //编辑
+  if(opt>0){
+    $.getJSON("/user/detail?id="+opt,function(result){
+      handleJsonResult(result,function(data){
+        $('#userFrm').form('load',data);
+        $('.passwd').hide();
+        $('#passwd').passwordbox('disable');
+        $('#rePasswd').passwordbox('disable');
+        $('#userName').textbox('readonly',true);
+        $('#userDlg').dialog('open');
+      });
+    });
+  }else{
+    $('.passwd').show();
+    $('#passwd').passwordbox('enable');
+    $('#rePasswd').passwordbox('enable');
+    $('#userName').textbox('readonly',false);
+    $('#userStatus').combobox('setValue',1);
+    $('#userDlg').dialog('open');
+  } 
+}
+
+function actionFmt(value,row,index){
+    if(row.userName=='root')
+      return "";
+    var link=permStr('USER_MGT:SAVE','<a href="#" onclick="openuserDlg(\''+row.userId+'\')" class="btn btn-green btn-xs">编辑</a>');
+    return link;
+}
+
+function statusFmt(value,row,index){
+    if(value==0){
+      return '禁用';
+    }else if(value==1){
+      return "正常";
+    }else if(value==2){
+      return "锁定";
+    }
+    return '';
+}
+
+function roleFmt(value,row,index){
+ return isEmptyStr(value)?"":roles[value];
+}
+
+function saveUser(){
+  ajaxForm('#userFrm','/user/save',function(data){
+    $('#userGrid').datagrid('reload');
+    $('#userDlg').dialog('close');
+  });
+}
+
+function resetPwd(){
+    var selectedRow=$('#userGrid').datagrid('getSelected');
+    if(selectedRow!=null){
+        $.messager.confirm('确认对话框', '确认重置该用户密码吗', function(r){
+            if (r){
+                $.post("/user/resetuserpasswd",{'id':selectedRow.userId},function(result){
+                    handleJsonResult(result,function(data){
+                        showInfo("重置成功,新密码:"+data);
+                    });
+                },"json");
+            }
+        });
+    }else{
+      showWarn("请选择用户");
+    }
+}
+function searchUser(){
+  var role=$('#condi-role').val();
+  var keyword=$('#condi-keyword').val();
+  var param={};
+  if(role!=""){
+      param.role=role;
+  }
+  if(keyword!=""){
+    if(safeChar(keyword)){
+      param.keyword=$.trim(keyword);
+    }else{
+      showWarn("不允许特殊字符");
+      return;
+    }
+  }
+
+  $('#userGrid').datagrid('load',param);
+}
+</script>
+</body>
+</html>

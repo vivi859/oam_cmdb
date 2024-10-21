@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>应用管理</title>
+{{template "header.tpl" .}}
+</head>
+<body>
+<div class="container">
+  <div class="pagenav">
+    资源管理 > 应用
+  </div>
+    <div id="toolbar" class="clear" style="margin-bottom: 10px;padding: 5px;">
+      <form style="display:inline-block" id="searchForm">
+      <select id="condi-projId"><option value="">-选择项目-</option>
+        {{range $key, $val := .projs}} <option value="{{$key}}">{{$val}}</option>{{end}}
+      </select>
+      <select id="condi-appType">
+    <option value="">-选择应用类型-</option>
+  {{range .appTypes}} <option>{{.}}</option>{{end}}
+    </select>
+    <input class="easyui-combobox" id="condi-hostId" style="width:200px;" data-options="mode:'remote',
+       textField: 'hostName',valueField:'hostId',
+       loader:autoCompleteSearchHost,
+       formatter:hostSelectText,
+       delay:300,
+       prompt:'主机名或IP',
+       limitToList:true" />
+      <input type="text" id="condi-keyword" class="textbox" placeholder="请输入应用名称" maxlength="50">
+      <button class="btn btn-green" type="button" onclick="searchApp()">查询</button>
+      <button class="btn btn-gray" type="button" onclick="resetForm('searchForm')" type="button">清空</button>
+      </form>
+      <div class="fr">
+          <button class="btn btn-green" perm="APP_MGT:SAVE" onclick="openappInfoDlg(0,0)">新增</button>
+          <button class="btn btn-kermesinus" perm="APP_MGT:DEL" onclick="delApp()">删除</button>
+      </div>
+    </div>
+    <div class="bigtable">
+      <table id="appGrid" style="width: 100%;min-height: 550px;">
+      </table>
+    </div>
+</div>
+<!-- 应用信息编辑窗口 -->
+<div title="编辑应用信息" class="easyui-dialog" id="appInfoDlg" style="width: 550px; height: 620px;" 
+data-options="modal:true,top:50,closed:true,cache:false,buttons: [{
+    text:'保存',iconCls:'icon-ok',handler:function(){
+      document.getElementById('appinfoframe').contentWindow.saveApp(
+        function(){
+          $('#appGrid').datagrid('reload');
+          $('#appInfoDlg').dialog('close');
+      }
+        );
+    }},
+    {text:'取消', handler:function(){
+       $('#appInfoDlg').dialog('close');
+   }}]">
+    <iframe id="appinfoframe" style="width:100%;height:99%;border:0;"></iframe>
+</div>
+<script type="text/javascript">
+  var funcodes=["APP_MGT:*"];
+$(document).ready(function() {
+  loadPerms(funcodes);
+  $('#appGrid').datagrid({
+        idField:'appId',
+        singleSelect:true,
+        fitColumns:true,
+        autoRowHeight:false,
+        url:'/appinfo/apppage',
+        border:false,
+        loadFilter:dataGridFilter,
+        scrollbarSize: 0,
+        pagination:true,
+        pageSize:15,
+        pageList:[15,30,50],
+        rowStyler: function(index,row){
+            if (row.isDeleted){
+                return 'color:#ccc;';
+            }
+        },
+        columns:[[
+            {field:'appId',title:'ID',hidden:true},
+            {field:'appName',title:'名称',width:'12%'},
+            {field:'projId',title:'所属项目',width:'12%',formatter:projFmt},
+            {field:'appDir',title:'安装目录',width:'15%',formatter:tipFmt},
+            {field:'appUrl',title:'访问地址',width:'16%',formatter:tipFmt},
+            {field:'hostNames',title:'部署主机',width:'16%',formatter:tipFmt},
+            {field:'desc',title:'备注',width:'15%',formatter:tipFmt},
+            {field:'appType',title:'类型',width:'8%'},
+           /* {field:'createTime',title:'创建时间',width:'9%'},
+            {field:'isDeleted',title:'已废除',width:'5%',formatter:boolFmt},*/
+            {field:'opt',title:'操作',width:'6%',fixed:true,align:'center',formatter:actionFmt}
+        ]]
+    });
+
+    $('#appGrid').datagrid('getPanel').addClass("lines-bottom");
+    filterPermElements();
+});
+
+
+function actionFmt(value,row,index){
+      return '<a href="#" perm="APP_MGT:SAVE" onclick="openappInfoDlg('+row.appId+',0)" class="btn btn-green btn-xs">编辑</a>';
+}
+
+var projsCache=[];
+function projFmt(value,row,index){
+  if(projsCache.length==0){
+    var projOpts = document.getElementById("condi-projId").options;
+    for(var opt of projOpts){
+      if(opt.value!="")
+      projsCache.push({value:opt.value,text:opt.text})
+    }
+  }
+  for(var proj of projsCache){
+    if(proj.value==value){
+        return proj.text;
+    }
+  }
+  return "";
+}
+
+function openappInfoDlg(opt,projId){
+  document.getElementById("appinfoframe").src="/appinfo/appdetail?id="+opt+"&projId="+projId;
+  $('#appInfoDlg').dialog('setTitle',opt==0?'新增应用':'编辑应用');
+  $('#appInfoDlg').dialog('open');
+}
+
+function delApp(){
+    var selectedRow=$('#appGrid').datagrid('getSelected');
+    if(selectedRow!=null){
+        $.messager.confirm('确认对话框', '删除后不可恢复,确认要删除该应用吗', function(r){
+            if (r){
+                $.post("/appinfo/delapp",{'id':selectedRow.appId},function(result){
+                    handleJsonResult(result,function(data){
+                        var index=$('#appGrid').datagrid('getRowIndex',selectedRow);
+                        $('#appGrid').datagrid('deleteRow',index);
+                        toast("删除成功")
+                    });
+                },"json");
+            }
+        });
+    }
+}
+
+function searchApp(){
+  var pid=$('#condi-projId').val();
+  var keyword=$('#condi-keyword').val();
+  var appType=$('#condi-appType').val();
+  var hostId=$('#condi-hostId').combobox('getValue');
+  var param={};
+  if(pid!=""){
+      param.projId=pid;
+  }
+  if(keyword!=""){
+      if(!safeChar(keyword)){
+        showWarn("不允许特殊字符");
+        return;
+      }
+      param.keyword=$.trim(keyword);
+  }
+  if(appType!=""){
+    param.appType=appType;
+  }
+  if(hostId!=""){
+    param.hostId=hostId;
+  }
+  $('#appGrid').datagrid('load',param);
+}
+
+function autoCompleteSearchHost(param,success,error){
+    var q=param.q||'';
+    if(q.length<4){
+      return;
+    }
+    $.ajax({
+           type: "POST",
+           url: "/host/basehostpage",
+           data: {'rows':100,'keyword':param.q},
+           dataType:"json",
+           success: function(result){ 
+            if(result && result.status==200){
+              var page = result.data;
+              if(page){
+                success(page.rows);
+              }else{
+                success([]);
+              }
+            }
+           },
+           error:function(){error.apply(this.arguments);}
+        });
+}
+
+function hostSelectText(row){
+    var tmp="";
+    if(row.publicIp||row.internalIp){
+      var arr=[row.publicIp,row.internalIp];
+      tmp=row.hostName+"<br><span class=\"gray\">"+arr.joinstr(" / ")+"</span>";
+    }else{
+      tmp=row.hostName;
+    }
+		return tmp;
+	}
+</script>
+</body>
+</html>

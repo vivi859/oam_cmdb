@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{.doc.Title}} - 文档查看</title>
+</head>
+<body>
+    {{if eq .doc.DocType "pdf"}}
+    <object src="previewUrl" width="100%" height="100%">
+        This browser does not support PDFs. Please download the PDF to view it: <a :href="previewUrl">Download PDF</a>
+    </object>
+    {{end}}
+    <iframe src='https://view.officeapps.live.com/op/view.aspx?src=http://storage.xuetangx.com/public_assets/xuetangx/PDF/1.xls' width='100%' height='100%' frameborder='1'>
+    </iframe>
+</body>
+</html>

@@ -1,0 +1,14 @@
+.vscode
+*.exe
+*.exe~
+*.tmp
+*.gz
+*.zip
+oam
+data/oam - 副本.db
+.unotes
+logs
+oam-windows.zip
+conf/app.conf
+conf/pri_prod.pem
+conf/pub_prod.pem

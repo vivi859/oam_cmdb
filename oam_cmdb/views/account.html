@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>账号管理</title>
+{{template "header.tpl" .}}
+</head>
+<body>
+    <div class="container">
+        <div class="pagenav">
+            资源管理 > 账号
+          </div>
+        <div class="bigtable">
+            <div id="toolbar" class="clear" style="margin-bottom: 10px;padding: 5px;">
+                <form style="display:inline-block" id="searchForm">
+                <select id="condi-proj"><option value="0">-选择项目-</option>
+                {{range $key, $val := .projs}} <option value="{{$key}}">{{$val}}</option>{{end}}
+                </select>
+                <select id="condi-atype"><option value="-1">-选择账号类型-</option>
+                <option value="0">普通账号</option>
+                {{range $key, $val := .accountTypes}}<option value="{{$key}}">{{$val}}</option>{{end}}
+                </select>
+                <input type="text" id="condi-name" class="textbox" maxlength="50" placeholder="名称/账号/其他">
+                <input checked="checked" id="condi-normal" type="checkbox" /> 正常状态&nbsp;
+                <button class="btn btn-green" onclick="searchAccount()" type="button">查询</button>
+                <button class="btn btn-gray" onclick="resetForm('searchForm')" type="button">清空</button>&nbsp;&nbsp;
+                <a href="/account/accounttype" class="easyui-linkbutton">账号类型</a>
+                </form>
+                <div class="fr">
+                    <button class="btn btn-green" id="btnAdd" perm="ACCOUNT_MGT:ADD" onclick="openNewAccountDlg()">新增</button>
+                    <button class="btn btn-gray" id="btnCancel" perm="ACCOUNT_MGT:DEL" onclick="delAccount(1)" title="保留账号，但不可编辑">作废</button>
+                    <button class="btn btn-gray" id="btnDel" perm="ACCOUNT_MGT:DEL" onclick="delAccount(0)">删除</button>
+                </div>
+            </div>
+            <table id="accountGrid" style="width: 100%;min-height: 550px;" >
+            </table>
+          </div>
+    </div>
+
+    <div class="easyui-dialog" id="accountDlg" style="width:640px;height:620px" data-options="maximizable:true,title:'新增账号',closed: true,modal:true,top:'10%',
+    buttons:[{text:'保存',iconCls:'icon-ok',handler:function(){
+        document.getElementById('dlgframe').contentWindow.saveAccount();
+    }
+    },{text:'关闭',iconCls:'icon-clear',handler:function(){$('#accountDlg').dialog('close');}
+    }]">
+        <iframe id="dlgframe" style="width:100%;height:99%;border:0;"></iframe>
+    </div>
+
+    <div id="relViewDlg" class="easyui-window" title="账号详情" style="width:500px;min-height:450px"
+    data-options="collapsible:false,minimizable:false,maximizable:false,closed:true,draggable:false,modal:false">
+    </div>
+<script type="text/javascript">
+    var funcodes=["ACCOUNT_MGT:*"];
+    $(document).ready(function() {
+      loadPerms(funcodes);
+      $('#accountGrid').datagrid({
+            idField:'accountId',
+            singleSelect:true,
+            fitColumns:true,
+            nowrap : true,
+            url:'/account/accountpage',
+            queryParams:{'notDeleted':1},
+            border:false,
+            loadFilter:dataGridFilter,
+            autoRowHeight:false,
+            pageSize:15,
+            pageList:[15,30,50],
+            pagination:true,
+            scrollbarSize:0,
+            rowStyler: function(index,row){
+                if (row.isDeleted){
+                    return 'color:#999;';
+                }
+            },
+            columns:[[
+                {field:'accountId',title:'ID',hidden:true},
+                {field:'accountName',title:'账号名称',width:'15%'},
+                {field:'fieldUser',title:'用户名',width:'13%'},
+                {field:'fieldPwd',title:'密码',width:'5%',formatter:function(value,row,index){return value!=undefined && value!=""?"***":""}},
+                {field:'fieldUrl',title:'地址(URL)',width:'14%'},
+                {field:'fieldRemark',title:'备注',width:'13%',formatter:textoverFmt},
+                {field:'projName',title:'所属项目',width:'15%',formatter:textoverFmt},
+                {field:'typeName',title:'类型',width:'10%'},
+                {field:'isDeleted',title:'已废除',width:'5%',formatter:boolFmt},
+                {field:'opt',title:'操作',width:'10%',fixed:true,formatter:acctActionFmt}
+            ]]
+        });
+
+       $('#accountGrid').datagrid('getPanel').addClass("lines-bottom");
+       filterPermElements();
+    });
+
+    function searchAccount(){
+        var projId=parseInt($('#condi-proj').val());
+        var typeId=parseInt($('#condi-atype').val());
+        var aname=$('#condi-name').val();
+        var param={};
+        if(projId>0){
+            param.projId=projId;
+        }
+        if(typeId>=0){
+            param.typeId=typeId;
+        }
+        if(aname!=""){
+            param.accountName=$.trim(aname)
+        }
+        var viewchk=$('#condi-normal').prop('checked');
+        if(viewchk){
+            param.notDeleted="1";
+        }
+        
+        $('#accountGrid').datagrid('load',param);
+    }
+    
+    function delAccount(act){
+        var selectedRow=$('#accountGrid').datagrid('getSelected');
+        if(selectedRow!=null){
+            if(act==1&&selectedRow.isDeleted){
+                return;
+            }
+            let actTxt=act==0?"操作不可恢复,确认要删除该账号吗":"确认要废除该账号吗";
+            $.messager.confirm('确认对话框', actTxt, function(r){
+                if (r){
+                    $.post("/account/delaccount",{'id':selectedRow.accountId,'action':act},function(result){
+                        handleJsonResult(result,function(data){
+                            var index=$('#accountGrid').datagrid('getRowIndex',selectedRow);
+                            if(act==0){
+                                $('#accountGrid').datagrid('deleteRow',index);
+                            }else{
+                                $('#accountGrid').datagrid('reload');
+                            }
+                            toast("操作成功");
+                            
+                        });
+                    },"json");
+                }
+            });
+        }
+    }
+
+    function recover(id){
+        $.messager.confirm('确认对话框', "确定要恢复该账号吗", function(r){
+            if (r){
+                $.post("/account/recoveraccount",{'id':id},function(result){
+                    handleJsonResult(result,function(data){
+                        if(data){
+                            $('#accountGrid').datagrid('reload');
+                        }
+                        toast("操作成功")
+                    });
+                },"json");
+            }
+        });
+    }
+</script>
+<script type="text/javascript" src="../static/js/account.js"></script>
+<script type="text/javascript" src="../static/js/jsencrypt.js"></script>
+</body>
+</html>

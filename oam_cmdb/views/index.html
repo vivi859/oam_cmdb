@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>运维资源管理系统GO-OAM</title>
+<script type="text/javascript">
+    if(window.top!=window.self) {
+        window.top.location.href=location.href;    
+    }
+</script>
+{{template "header.tpl" .}}
+<style type="text/css">
+.sidemenu .accordion .panel-title{color: #b8c7ce;}
+.sidemenu .accordion .accordion-header{background: #2f4050;color: #b8c7ce;}
+.sidemenu .accordion .accordion-body{background: #2c3b41;color:#b8c7ce}/*#8aa4af; #a3beca*/
+.sidemenu .accordion .accordion-header-selected{ background: #1e282c;}
+.sidemenu .accordion .accordion-collapse{background: transparent;}
+.sidemenu .tree-node-hover{background: #2c3b41;color: #fff;}
+.sidemenu .tree-node-selected{background: #2c3b41;color: #fff;}
+.sidemenu .accordion-header .panel-icon{font-size: 14px;}
+.sidemenu .accordion-header .panel-tool{display: none;}
+.sidemenu .accordion-header::after,
+.sidemenu .tree-node-nonleaf::after{
+    display: inline-block;
+    vertical-align: top;
+    border-style: solid;
+    transform:rotate(45deg);
+    width: 4px;
+    height: 4px;
+    content: '';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    margin-top: -3px;
+    border-width: 0 1px 1px 0;
+}
+.sidemenu .accordion-header-selected::after{transform:rotate(-135deg);}
+.sidemenu .tree-node-nonleaf::after{transform:rotate(-135deg);}
+.sidemenu .tree-node-nonleaf-collapsed::after{transform:rotate(45deg);}
+.sidemenu-collapsed .accordion-header::after{display: none;}
+.sidemenu-tooltip .accordion{border-color: #1e282c;}
+.sideMenu .panel-with-icon{padding-left:20px}
+.sidemenu .tree-node-selected{ border-left: 2px solid #1ab394;border-right: none;}
+
+#leftPanel{width:200px;background: #2f4050}
+#headPanel{overflow:hidden;height:50px;background-color: #fff;clear:both}
+#mainPanel{border:none;padding:0;overflow-y: hidden;}
+#logo,#headAppNav{float:left;height:50px;line-height:50px;vertical-align:middle}
+#logo{width:200px;font-size:16px;font-weight: bold; display: flex;align-items: center; justify-content: center;color:#1ab394;;background-color:#222d32}
+
+#headProfile{float:right;padding-right:20px;height:50px;line-height:50px;vertical-align:middle}
+#headAppNav{padding-left:15px}
+
+.user-profile{text-align:center;}
+#bodyLayout{padding: 0;}
+</style>
+</head>
+<body class="easyui-layout" id="bodyLayout">
+    <div id="headPanel" data-options="region:'north',border:false,split:false">
+	    <div id="logo"><img src="../static/img/logo-mini.png" alt="OAM" id="logo-lg"/><span id="logo-txt">&nbsp;运维资源管理系统</span></div> 
+	    <div id="headAppNav">
+		    <a class="fa fa-bars" href="javascript:;" onclick="sideMenuToggle()">&nbsp;</a>&nbsp;
+	   </div>
+	   <div id="headProfile" class="user-profile">
+        <a href="https://gitee.com/jqncc/OAM" title="源码仓库" target="_blank"><i class="fa fa-github" aria-hidden="true" /></i></a>&nbsp;
+        <a href="javascript:;" class="easyui-menubutton" data-options="menu:'#appsMenu'">{{or .currentLoginUser.RealName .currentLoginUser.UserName}}</a>  &nbsp;
+        <div id="appsMenu" class="myMenu" style="width: 100px;" data-options="minWidth:100">
+            <div><a href="/user/profile" target="mainframe">个人资料</a></div>
+            <div><a href="/logout">退 出</a></div>
+        </div>
+	   </div>
+    </div>
+
+    <div id="leftPanel" data-options="region:'west',split:false,border:false"> 
+        <div id="sideMenu"></div>
+    </div>  
+
+    <div id="mainPanel" data-options="region:'center',split:false,border:false">
+        <iframe id="mainframe" name="mainframe" frameborder="0" style="width:100%;height:100%;border:0;"></iframe>
+    </div>    
+    <script type="text/javascript">
+    function changeFrameHeight() {
+        var iframe= document.getElementById("mainframe");
+        var iframeWin = iframe.contentWindow || iframe.contentDocument.parentWindow;
+        if (iframeWin.document.body) {
+            iframe.height = iframeWin.document.documentElement.scrollHeight || iframeWin.document.body.scrollHeight;
+        }
+    }
+
+    function setCenterPanelHeight(){
+        var c = $('body');
+        var p = c.layout('panel','center');    // get the center panel
+        var oldHeight = p.panel('panel').outerHeight();
+        p.panel('resize', {height:'auto'});
+        var newHeight = p.panel('panel').outerHeight();
+        // console.log(newHeight)
+        c.layout('resize',{
+            height: (c.height() + newHeight - oldHeight)
+        });
+    }
+
+	var leftPanelMaxWidth=200;
+	var sideMenuMaxWidth=leftPanelMaxWidth;
+    var fixMenu={text: '知识库',iconCls: 'fa fa-book',children: [
+			{text:'Linux命令手册',url:'http://devfz.cn/book/linux_cmd_handbook/?from=oam',t:"_blank"},
+            {text:'Shell语法手册',url:'http://devfz.cn/book/shell/index.html?from=oam',t:"_blank"},
+			{text:'网址导航',url:'http://devfz.cn/?from=oam',t:"_blank"}
+			]
+		}
+
+    $(function(){
+        $.ajax({
+            dataType: "json",
+            async :false,
+            url: "/fun/navmenu",
+            success: function(result){
+                handleJsonResult(result,function(data){
+                    if(data==null||data.length==0){
+                        alert("未分配页面菜单权限");
+                        return;
+                    }
+                    var menudata=data;
+                    menudata.push(fixMenu);
+                    $('#sideMenu').sidemenu({
+                        border:false,
+                        width:sideMenuMaxWidth,
+                        data:menudata,
+                        onSelect:function(item){
+                            var title = item.text;
+                            var url = item.url;
+                            if(url!=""){
+                                if(item.t=="_blank"){
+                                    window.open(url,"_blank");
+                                }else{
+                                    document.getElementById("mainframe").src=item.url
+                                }
+                            }
+                        }
+                    });
+                   document.getElementById("mainframe").src="/project/list";
+                });
+              }
+        });
+    
+        $("#mainframe").load(function () {
+            changeFrameHeight();
+        });
+    });
+  
+	function sideMenuToggle(){
+		 var minWidth=60;
+		 var leftpanel=$("#bodyLayout").layout("panel",'west');
+         var opts = $('#sideMenu').sidemenu('options');
+       	 $('#sideMenu').sidemenu(opts.collapsed ? 'expand' : 'collapse');
+         $('#sideMenu').sidemenu('resize', {width: opts.collapsed ? minWidth-10 :sideMenuMaxWidth})
+         leftpanel.panel('resize',{width: opts.collapsed ? minWidth : leftPanelMaxWidth});
+		 $('#logo').css("width",opts.collapsed ? minWidth : leftPanelMaxWidth);
+		 if(opts.collapsed){
+            $('#logo-txt').hide();
+        }else{
+             $('#logo-txt').show();
+		 }
+         $("#bodyLayout").layout('resize', {width:'100%'})
+    }
+</script>
+</body>
+</html>

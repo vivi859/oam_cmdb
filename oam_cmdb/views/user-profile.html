@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>个人中心</title>
+{{template "header.tpl" .}}
+</head>
+<style type="text/css">
+.profile{padding-left: 30px;}
+.profile p{ line-height: 36px;padding: 5px 0;}
+.profile label{display: inline-block;width: 100px;}
+/* #pwdDiv{display: none;} */
+</style>
+<body>
+<div class="container">
+    <div style="border-left:solid 3px #ddd;padding-left:10px;margin-bottom:20px;color: #676a6c;">
+      <h2 style="font-weight: 100;">个人中心</h2>
+    </div>
+    <div class="profile">
+      <p><label>用户ID:</label>{{.user.UserId}}</p>
+      <p><label>用户名:</label>{{.user.UserName}}</p>
+      <p><label>姓  名:</label>{{.user.RealName}}</p>
+      <p><label>注册时间:</label>{{dateformat .user.CreateTime "2006年1月02日 15:04:05"}}</p>
+    <!--  <p><label>角色:</label></p> -->
+      <p class="clr">
+        <div class="fl" style="width: 100px;">密码:</div>
+        <div class="fl" style="width: 250px;">
+          <button class="btn" id="btnModPwd" onclick="showUpdatePwd()">修改</button>
+          <div class="formDiv none" id="pwdDiv" style="padding: 0;">
+            <form id="userFrm" method="post">
+              <div class="inputctl">
+                <input name="oldPasswd" id="oldPasswd" class="easyui-passwordbox" data-options="validateOnCreate:false,required:true,
+                width:'250px',prompt:'旧密码'" validType="password">
+              </div>
+              <div class="inputctl">
+                <input name="passwd" id="passwd" class="easyui-passwordbox" data-options="validateOnCreate:false,required:true,
+                width:'250px',prompt:'新密码,6-30个字符,不含空格'" validType="password">
+              </div>
+              <div class="inputctl">
+                <input name="rePasswd" id="rePasswd" class="easyui-passwordbox" data-options="validateOnCreate:false,required:true,
+                width:'250px',invalidMessage:'两次不密码不相同',prompt:'确认密码'" validType="equals['#passwd']">
+              </div>
+              <div class="inputctl" style="text-align: right;">
+                <button class="btn" onclick="cancelUpdatePwd()" type="button">取消</button>
+                <button class="btn btn-green" type="button" onclick="updatePwd()">确认</button></div>
+            </form>
+          </div>
+        </div>
+      </p>
+  </div>
+</div>
+
+<script type="text/javascript">
+  function cancelUpdatePwd(){
+    $('#pwdDiv').hide();
+    $('#btnModPwd').show();
+    $('#userFrm').form('clear');
+  }
+  function showUpdatePwd(){
+    $('#pwdDiv').show();
+    $('#btnModPwd').hide();
+  }
+  function updatePwd(){
+    ajaxForm('#userFrm','/user/updateloginuserpasswd',function(data){
+      alert("密码修改成功,请重新登录");
+      top.location.href="/logout";
+    });
+  }
+</script>
+</body>
+</html>

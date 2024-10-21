@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>新增账号</title>
+{{template "header.tpl" .}}
+<script type="text/javascript" src="../static/js/account.js"></script>
+<style type="text/css">
+	.tagbox-label:hover{cursor:pointer}
+</style>
+</head>
+<body style="background-color: #fff;padding: 0;">
+<form id="accountFrm" method="post" class="formDiv">
+    <input type="hidden" id="act" value="add">
+    <div class="inputctl">   
+        <select name="typeId" id="typeId" class="easyui-combobox" data-options="editable:false,
+        label:'账号类型：',width:'90%',labelWidth:'110',panelMaxHeight:200,onChange:typeChange">
+        <option value="0">无</option>
+        {{range $key, $val := .accountTypes}}<option value="{{$key}}">{{$val}}</option>{{end}}
+        </select>
+    </div>
+    <div class="inputctl">   
+        <select name="projId" id="projId" class="easyui-combobox" data-options="editable:false,
+        label:'所属项目：',width:'90%',labelWidth:'110',panelMaxHeight:200,multiple:true,value:'{{.projId}}'">
+        <option value="0">无</option>
+        {{range $key, $val := .projs}} <option value="{{$key}}">{{$val}}</option>{{end}}
+        </select>
+    </div>
+    <div class="inputctl">
+        <input name="accountName" id="accountName" class="easyui-textbox required" data-options="required:true,label:'名称：',labelWidth:'110',width:'90%',validType:'maxLength[100]'">
+    </div>
+    <div class="inputctl">
+        <input name="fieldUser" id="fieldUser" class="easyui-textbox" data-options="label:'账号：',labelWidth:'110',width:'90%',validType:'maxLength[100]'">
+    </div>
+    <div class="inputctl">
+        <input name="fieldPwd" id="fieldPwd" class="easyui-passwordbox" data-options="label:'账号密码：',labelWidth:'110',width:'90%',validType:'maxLength[150]'">
+    </div>
+    <div class="inputctl">
+        <input name="fieldRePwd" id="fieldRePwd" class="easyui-passwordbox" data-options="label:'重复密码：',labelWidth:'110',width:'90%',invalidMessage:'密码不正确'" validType="equals['#fieldPwd']">
+    </div>
+     <div class="inputctl">
+        <input name="fieldUrl" id="fieldUrl" class="easyui-textbox" data-options="label:'地址(URL)：',labelWidth:'110',width:'90%',validType:'maxLength[255]'">
+    </div>
+    <div class="inputctl">
+        <textarea name="fieldRemark" id="fieldRemark" class="easyui-textbox" 
+        data-options="label:'备注：',labelWidth:'110',width:'90%',multiline:true,validType:'maxLength[800]'" style="height: 60px;"></textarea>
+    </div>
+    <div id="fieldOtherWrapper">
+
+    </div>
+    <div class="inputctl">
+        <input class="easyui-tagbox" id="relAccountIds" data-options="label:'关联账号：',labelWidth:'110',width:'90%',buttonText: '新增',
+        valueField: 'id',
+		textField: 'text',
+		limitToList: true,
+        onClickButton: function(){
+            $('#accountFindDlg').dialog('open');
+        }">
+    </div>
+</form>
+{{template "account-find.tpl" .}}
+<div id="uploadFileWin" class="none pd20">
+    <input type="file" accept="" id="uploadfile">
+</div>
+<script type="text/javascript">
+
+    function typeChange(newValue,oldValue){
+        var typeId=parseInt(newValue);
+        if(typeId==0){
+            $('#fieldOtherWrapper').empty();
+            return;
+        }
+        var fields=fieldCache[newValue];
+        if(!fields){
+            $.ajax({
+                url:'/account/gettypefields',
+                async:false,
+                data: {id:typeId},
+                success: function(result){
+                    handleJsonResult(result,function(data){
+                        if(data&&data.length>0){
+                            fields=data;
+                            fieldCache[newValue]=data
+                        }
+                    });
+                },
+            })
+        }
+
+        createOtherField(fields,'fieldOtherWrapper')
+    }
+    
+</script>
+</body>
+</html>

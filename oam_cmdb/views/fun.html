@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>菜单权限管理</title>
+{{template "header.tpl" .}}
+<style type="text/css">
+.datagrid-row{height:25px}
+.tip{background-position: left center;padding:5px;padding-left:20px;}
+.validatebox-readonly{color:#666}
+.textbox-readonly {border:1px solid #999;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="pagenav">
+    系统管理 > 菜单管理
+  </div>
+  <table id="treetable" width="100%"></table>
+<div id="toolbar">
+  <p class="icon-tip tip red">请使用右键操作</p>
+</div>
+<!-- 右键菜单 -->
+<div id="contexMenu" class="easyui-menu" style="width:120px;">
+  <div onclick="editFun(1)" perm="FUN_MGT:SAVE">新增权限</div>
+  <div onclick="editFun(2)" perm="FUN_MGT:SAVE">新增子权限</div>
+  <div onclick="editFun(3)" data-options="iconCls:'icon-mini-edit'" perm="FUN_MGT:SAVE">编辑</div>
+  <div onclick="remove()" data-options="iconCls:'icon-clear'" perm="FUN_MGT:DEL">删除</div>
+  <div class="menu-sep"></div>
+  <div onclick="collapse()">收缩</div>
+  <div onclick="expand()">展开</div>
+</div>
+
+<div id="editWin" class="easyui-dialog" style="width: 520px; height: 500px;" 
+data-options="title:'编辑菜单/权限',resizable:true,modal:true,top:50,closed:true,cache:false,buttons: [
+    {text:'保存',iconCls:'icon-ok',handler:saveFun},
+    {text:'取消', handler:function(){$('#editWin').dialog('close');}}]">
+    <form id="funFrm" method="post" class="formDiv">
+        <input type="hidden" id="parentId" name="parentId" value="0">
+        <input type="hidden" id="funId" name="funId" value="">
+        <input type="hidden" id="funLevel" name="funLevel" value="">
+        <div class="inputctl"> 
+            <label class="textbox-label textbox-label-before">父级功能：</label><span class="red" id="parentName"></span>
+        </div>
+		<div class="inputctl"> 
+		<input class="easyui-textbox" name="funName" label="功能名称："
+			data-options="required:true,validType:['length[2,30]','unnormal'],width:'95%'" >
+        </div>
+		<div class="inputctl"> 
+        <input class="easyui-textbox" name="funCode" id="funcode" label="功能标识："
+            data-options="required:true,invalidMessage:'字母或下划线组成,长度3-100之间',width:'95%'" validType="regex['[a-zA-Z_\-]{3,100}']">
+        </div>
+		<div class="inputctl"> 
+		<select id="funType" class="easyui-combobox" name="funType" label="功能类型：" data-options="required:true,panelHeight:'auto',width:'95%'">
+        <option value="1">菜单</option>
+        <option value="2">功能</option>
+        </select>
+        </div>
+		<div class="inputctl"> 
+			<input class="easyui-textbox" name="funUrl" label="接口地址：" style="height:60px" data-options="width:'95%',multiline:true" prompt="地址,多个使用英文逗号分隔" validType="length[1,500]">
+        </div>
+		<div class="inputctl"> 
+			<input class="easyui-numberbox" name="funOrder" id="funOrder" label="排序：" data-options="required:true,width:'95%'" default="1" />
+        </div>
+        <div class="inputctl"> 
+            <input class="easyui-textbox" name="menuClass" label="样式：" prompt="页面显示样式,菜单类型有效" data-options="validType:['length[2,200]','unnormal'],width:'95%'">
+        </div>
+    </form>
+</div>
+</div>
+<script type="text/javascript">
+    var funcodes=["FUN_MGT:*"];
+    var lastEditNodeId=0;
+    $(document).ready(function() {
+        loadPerms(funcodes);
+        $('#treetable').treegrid({
+            fitColumns:true,
+            url:'/fun/funtree',
+            idField:'id',
+            treeField:'text',
+            toolbar:'#toolbar',
+            border:false,
+            fit:true,
+            onContextMenu: function(e,row){
+                if (row){
+                    e.preventDefault();
+                    $(this).treegrid('select', row.id);
+                    $('#contexMenu').menu('show',{
+                        left: e.pageX,
+                        top: e.pageY
+                    });                
+                }
+            },
+            onLoadSuccess:function(row, data){
+                if(lastEditNodeId>0){
+                    $('#treetable').treegrid('expandTo',lastEditNodeId).treegrid('select',lastEditNodeId);
+                }
+            },
+            loadFilter:dataGridNoPagerFilter,
+            columns:[[
+                {title:'功能名称',field:'text',width:'20%'},
+                {title:'标识',field:'funCode',width:'25%'},
+                {title:'功能类型',field:'funType',width:'10%',formatter:funTypeStr},
+                {title:'地址',field:'funUrl',width:'25%'},
+                {title:'样式',field:'iconCls',width:'10%'},
+                {title:'排序',field:'funOrder',width:'10%'}
+            ]]
+        });
+
+        filterPermMenu();
+    });
+  function funTypeStr(val,row){
+	  if(val==1){
+        return "菜单"
+      }else if(val==2){
+        return "功能"
+      }
+	  return "";
+  }
+
+  function editFun(type){
+    $('#funFrm').form('resetValidation');
+    $('#funFrm').form('clear');
+    var node = $('#treetable').treegrid('getSelected');
+    if(!node && type!=1){
+        showError("请选择要操作的功能");
+        return;
+    }
+
+    if(type==3){
+        //编辑
+        $.getJSON("/fun/detail?id="+node.id,function(result){
+            handleJsonResult(result,function(data){
+                $('#funFrm').form('load',data);
+                $('#funcode').textbox('readonly',true);
+                if(data.parentId>0){
+                    var parentNode=$('#treetable').treegrid('find',data.parentId);
+                    if(parentNode){
+                        $('#parentName').text(parentNode.text)
+                    }
+                }
+               
+                $('#editWin').dialog('setTitle','编辑菜单/权限');
+                $('#editWin').dialog('open');
+            });
+        });
+        return;
+    }else{
+        var pid=0;
+        if(type==1){
+            //新增权限
+            if(node){
+                var parentNode=$('#treetable').treegrid('getParent',node.id);
+                if(parentNode){
+                    pid=node.parentId;
+                    $('#parentId').val(parentNode.id)
+                    $('#parentName').text(parentNode.text)
+                }
+            }
+        }
+        else if(type==2){
+             //新增子权限
+            pid=node.id;
+            $('#parentId').val(node.id)
+            $('#parentName').text(node.text)
+        }
+        var order=1;
+        //新增权限默认排序值为原同级节点最大排序+1
+        if(pid>0){
+            var childs= $('#treetable').treegrid('getChildren',pid);
+            if(childs&&childs.length>0){
+                order=childs[childs.length-1]['funOrder']+1;
+            }
+        }else{
+            order=node?node['funOrder']+1:1;
+        }
+        $('#funOrder').numberbox('setValue',order);
+        $('#funcode').textbox('readonly',false);
+        $('#editWin').dialog('setTitle','新增菜单/权限');
+        $('#editWin').dialog('open');
+    }
+
+  }
+
+  //保存权限
+  function saveFun(){
+       $('#funFrm').form('submit', {
+          url: '/fun/save',
+          onSubmit: function(){
+              var isValid = $(this).form('validate');
+              return isValid;
+          },
+          success: function(data){
+              var result=$.parseJSON(data);
+              if(result){
+                  if(result.status==200){
+                      lastEditNodeId=result.data.id;
+                      showInfo("操作成功");
+                      $('#editWin').dialog('close');
+                      $('#treetable').treegrid('reload');
+                     // $('#treetable').treegrid('expandTo',5).treegrid('select',result.data.id);
+                  }else{
+                      showError(result.message);
+                  }
+              }
+          }
+      });
+  }
+ 
+  function remove(){
+      var node = $('#treetable').treegrid('getSelected');
+      if (node){
+    	  $.messager.confirm('警告', "操作不可恢复,确认删除所选功能吗?", function(isConfirm){
+             if (isConfirm){
+	    	  $.ajax({
+	              url : "/fun/deletefun",  
+	              data:"id="+node.id,
+	              dataType : "json",
+	              success: function (data){
+	                  if(data.status==200){
+	                      $.messager.alert({
+	                            title: '消息',
+	                            msg: '操作成功',
+	                            fn: function(){
+	                            	 $('#treetable').treegrid('remove', node.id);
+	                            }
+	                        });
+	                  }else{
+	                      showError(data.message);
+	                  }
+	              }
+	          }); 
+          }});
+      }
+  }
+  function collapse(){
+      var node = $('#treetable').treegrid('getSelected');
+      if (node){
+          $('#treetable').treegrid('collapseAll', node.id);
+      }
+  }
+  function expand(){
+      var node = $('#treetable').treegrid('getSelected');
+      if (node){
+          $('#treetable').treegrid('expandAll', node.id);
+      }
+  }
+
+  function filterPermMenu(){
+	$("div[perm]").each(function(){
+        var $this=$(this);
+		if(!permMap[this.getAttribute("perm")]){
+			$this.off('click','**');
+            $this.addClass('gray');
+		}
+	});
+}
+</script>
+</body>
+</html>

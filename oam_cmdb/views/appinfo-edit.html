@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>应用编辑</title>
+{{template "header.tpl" .}}
+</head>
+<body style="background-color: #fff;padding: 0;">
+<div class="formDiv">
+<form id="appFrm" method="post">
+  <div class="inputctl"> 
+    <select name="appType" id="appType" class="easyui-combobox" 
+    data-options="editable:false,label:'应用类型：',width:'75%',labelWidth:'85px',value:'{{.app.AppType}}'">
+  {{range .appTypes}} <option>{{.}}</option>{{end}}
+    </select>
+    <a href="#" class="easyui-menubutton" data-options="menu:'#srvList',width:'80px'">预定义</a>
+    <div id="srvList" class="myMenu none" style="width: 120px;max-height: 400px;">
+      {{range .srvsoftwares}}<div data-port="{{.AppPort}}" data-type="{{.AppType}}">{{.AppName}}</div>{{end}}
+    </div>
+  </div>
+  <div class="inputctl"> 
+    <input type="hidden" id="appId" name="appId" value="{{.app.AppId}}">
+    <input name="appName" id="appName" value="{{.app.AppName}}" class="easyui-textbox" data-options="required:true,validType:['maxLength[50]','safeChar'],label:'应用名称：',width:'95%',labelWidth:'85px'">
+  </div>
+  <div class="inputctl"> 
+   <select name="projId" id="projId" class="easyui-combobox" 
+    data-options="value:'{{or .sepc_projid .app.ProjId}}',editable:false,label:'所属项目：',width:'95%',
+    labelWidth:'85px'{{if .sepc_projid}},readonly:true{{end}},onChange:function(nv,ov){searchHost()}">
+    <option value="0">-无-</option>
+  {{range $key, $val := .projs}} <option value="{{$key}}">{{$val}}</option>{{end}}
+    </select>
+  </div>
+  <div class="inputctl"> 
+    <input name="appDir" id="appDir" value="{{.app.AppDir}}" class="easyui-textbox" 
+    data-options="validateOnCreate:false,validType:'maxLength[255]',label:'安装目录：',width:'95%',labelWidth:'85px'">
+  </div>
+  <div class="inputctl"> 
+    <select name="hostIds" id="hostIds" class="easyui-combogrid" data-options="editable:false,
+      label:'部署主机：',width:'95%',labelWidth:'85px', panelWidth: 360,
+      multiple: true,
+      idField: 'hostId',
+      textField: 'hostName',
+      url: '/host/basehostpage',
+      pagination:true,
+      queryParams:{projId:$('#projId').val()},
+      pageSize:20,
+      toolbar:'#hostCombGridToolbar',
+      {{if .sepc_hostid}} {{printf "value:[%d]," .sepc_hostid }}{{else}} value:{{or .app.HostIds.ToJSONString "[]"}}, {{end}}
+      loadFilter:dataGridFilter,
+      columns: [[
+        {field:'hostId',title:'ID',hidden:true},
+        {field:'hostName',title:'名称',width:'150'},
+        {field:'publicIp',title:'IP',width:'215',formatter:ipFmt}
+      ]],
+      fitColumns: true">
+    </select>
+  </div>
+  <div class="inputctl"> 
+    <input name="appUrl" id="appUrl" value="{{.app.AppUrl}}" class="easyui-textbox" 
+    data-options="validType:'maxLength[255]',label:'访问地址：',width:'95%',labelWidth:'85px'">
+  </div>
+  <div class="inputctl"> 
+    <input name="appPort" id="appPort" {{if .app.AppPort}}value="{{.app.AppPort}}"{{end}} class="easyui-numberbox" 
+    data-options="max:65535,width:'95%',label:'端口：',labelWidth:'85px'">
+  </div>
+  <div class="inputctl"> 
+  <select name="devLang" id="devLang" class="easyui-combobox" 
+    data-options="editable:false,label:'开发语言：',width:'95%',labelWidth:'85px', value:'{{.app.DevLang}}'">
+    <option></option>
+  {{range .devLangs}} <option>{{.}}</option>{{end}}
+    </select>
+    </div>
+  <div class="inputctl"> 
+    <input name="sourcecodeRepo" id="sourcecodeRepo" value="{{.app.SourcecodeRepo}}" class="easyui-textbox" 
+    data-options="validType:'maxLength[255]',label:'源码地址：',width:'95%',labelWidth:'85px'">
+  </div>
+  <div class="inputctl">
+    <textarea name="desc" id="desc" class="easyui-textbox" 
+    data-options="validType:'maxLength[500]',width:'95%',label:'备注：',labelWidth:'85px',multiline:true" style="height:80px;">{{.app.Desc}}</textarea>
+  </div>
+</form>
+</div>
+
+<div id="hostCombGridToolbar" style="display:none;text-align: right;">
+  <input type="text" id="condi-keyword" class="textbox" placeholder="请输入主机IP或名称" maxlength="32">
+  <button class="btn" onclick="searchHost()">筛选</button>
+</div>
+<script src="/static/js/hostapp.js"></script>
+<script type="text/javascript">
+$(document).ready(function() {
+  //修改主机下拉列表的分页样式
+  var pager = $('#hostIds').combogrid('grid').datagrid('getPager');
+  pager.pagination({'displayMsg':'','showPageList':false,'showRefresh':false,layout:['first','prev','next','last','links']})
+  //预定义应用设置
+   $('#srvList').on('click', "div",function(e){
+    var my=$(this)
+    $('#appName').textbox('setValue',my.text());
+    var t=my.data("type");
+    if (t){
+      $('#appType').combobox('setValue',t)
+    }
+    var p=my.data("port")
+    if(p){
+      $('#appPort').numberbox('setValue',p);
+    }
+  });
+})
+function searchHost(){
+  var g=$('#hostIds').combogrid('grid');
+  var keyword=$('#condi-keyword').val();
+  var param={};
+  if(keyword!=""){
+    if(safeChar(keyword)){
+      param.keyword=$.trim(keyword);
+    }else{
+      showWarn("不允许特殊字符~#^$><%!*=`");
+      return;
+    }
+  }
+  var projId=$('#projId').combobox('getValue');
+  if(projId!=""){
+    param.projId=projId;
+  }
+  g.datagrid('load',param);
+}
+
+</script>
+</body></html>

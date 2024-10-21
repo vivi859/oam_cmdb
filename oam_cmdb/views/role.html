@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>角色管理</title>
+{{template "header.tpl" .}}
+</head>
+<body>
+<div class="container">
+  <div class="pagenav">
+    系统管理 > 角色管理
+  </div>
+    <div id="toolbar" style="margin-bottom: 10px;padding:5px 8px;text-align: right;">
+        <button class="btn btn-green" id="btnAdd" perm="ROLE_MGT:SAVE" onclick="openRoleDlg('')">新增</button>
+        <button class="btn btn-gray" id="btnDel" perm="ROLE_MGT:DEL" onclick="delrole()">删除</button>
+    </div>
+    <div class="bigtable">
+        <table id="roleGrid" style="width: 100%;min-height: 600px;">
+        </table>
+    </div>
+</div>
+<!-- 编辑窗口 -->
+<div title="编辑角色" class="easyui-dialog" id="roleDlg" style="width: 420px; height: 250px;" 
+data-options="resizable:true,modal:true,top:50,closed:true,cache:false,buttons: [
+    {text:'保存',iconCls:'icon-ok',handler:saveRole},
+    {text:'取消', handler:function(){$('#roleDlg').dialog('close');}}]">
+   <form id="roleFrm" method="post" class="formDiv">
+    <input name="roleCode" id="roleCode" type="hidden">
+    <div class="inputctl"> 
+        <input name="roleName" id="roleName" class="easyui-textbox" data-options="validateOnCreate:false,required:true,validType:'maxLength[30]',
+        label:'角色名称：',width:'100%'">
+    </div>
+    <div class="inputctl"> 
+      <select name="roleStatus" id="roleStatus" class="easyui-combobox" data-options="editable:false,required:true,label:'状态：',width:'100%',panelHeight:100">
+        <option value="1">正常</option>
+        <option value="0">禁用</option>
+      </select>
+    </div>
+    </form>
+</div>
+<div title="权限分配" class="easyui-dialog" id="roleFunDlg" style="width: 700px; height: 500px;" 
+data-options="resizable:true,modal:true,closed:true,cache:false,buttons: [
+    {text:'保存',iconCls:'icon-ok',handler:saveRoleFun},
+    {text:'取消', handler:function(){$('#roleFunDlg').dialog('close');}}]">
+    <table id="treetable" width="100%"></table>
+</div>
+<script>
+ var funcodes=["ROLE_MGT:*"];
+ $(document).ready(function() {
+    loadPerms(funcodes);
+  $('#roleGrid').datagrid({
+        idField:'roleCode',
+        singleSelect:true,
+        fitColumns:true,
+        autoRowHeight:false,
+        url:'/role/rolelist',
+        border:false,
+        loadFilter:dataGridNoPagerFilter,
+        scrollbarSize: 0,
+        pagination:false,
+        columns:[[
+            {field:'roleCode',title:'角色标识',width:'15%'},
+            {field:'roleName',title:'角色名称',width:'50%'},
+            {field:'roleStatus',title:'状态',width:'10%',formatter:statusFmt},
+            {field:'updateTime',title:'最近修改时间',width:'15%'},
+            {field:'opt',title:'操作',width:'10%',align:'center',formatter:actionFmt}
+        ]]
+    });
+
+    $('#roleGrid').datagrid('getPanel').addClass("lines-bottom");
+    filterPermElements();
+});
+    //打开编辑框
+function openRoleDlg(id){
+  $('#roleFrm').form('resetValidation');
+  $('#roleFrm').form('clear');
+  if(id.length>1){
+        $.getJSON("/role/detail?id="+id,function(result){
+            handleJsonResult(result,function(data){
+                $('#roleFrm').form('load',data);
+                $('#roleDlg').dialog('open');
+            });
+        });
+    }else{
+        $('#roleStatus').combobox('setValue',1);
+        $('#roleDlg').dialog('open');
+    }
+}
+var assignRole;
+function openRoleFunDlg(id){
+    assignRole=id;
+    $('#treetable').treegrid({
+          fitColumns:true,
+          url:'/fun/rolefuntree?id='+id,
+          idField:'id',
+          treeField:'text',
+          cascadeCheck:false,
+          border:false,
+          fit:true,
+          checkbox:true,
+          loadFilter:dataGridNoPagerFilter,
+          columns:[[
+              {title:'功能名称',field:'text',width:'30%'},
+              {title:'标识',field:'funCode',width:'25%'},
+              {title:'地址',field:'funUrl',width:'45%'}
+          ]]
+      });
+      $('#roleFunDlg').dialog('open');
+}
+function actionFmt(value,row,index){
+    var link='';
+    if(row.roleCode=='ROLE_SUPERVISOR')
+      return link;
+    link='<a href="#" perm="ROLE_MGT:SAVE" onclick="openRoleDlg(\''+row.roleCode+'\')" class="btn btn-green btn-xs">编辑</a>';
+    link=link+'&nbsp<a href="#" perm="ROLE_MGT:ASSIGN_PERM" onclick="openRoleFunDlg(\''+row.roleCode+'\')" class="btn btn-kermesinus btn-xs">分配权限</a>';
+    return link;
+}
+
+function statusFmt(value,row,index){
+    if(value==0){
+      return '禁用';
+    }else if(value==1){
+      return "正常";
+    }
+    return '';
+}
+function saveRole(){
+    ajaxForm('#roleFrm','/role/save',function(data){
+    $('#roleGrid').datagrid('reload');
+    $('#roleDlg').dialog('close');
+    toast("操作成功")
+  });
+}
+function delrole(){
+    var selectedRow=$('#roleGrid').datagrid('getSelected');
+    if(selectedRow!=null){
+        if(selectedRow.isDeleted){
+             return;
+        }
+        $.messager.confirm('确认对话框', "操作不可恢复,确认要删除该角色吗", function(r){
+            if (r){
+                $.post("/role/deleterole",{'id':selectedRow.roleCode},function(result){
+                    handleJsonResult(result,function(data){
+                        $('#roleGrid').datagrid('reload');
+                        toast("操作成功")
+                    });
+                },"json");
+            }
+        });
+    }
+}
+function saveRoleFun(){
+    var assignFun={
+        'funCodes':[],
+        'roleCode':assignRole
+    };
+    var nodes=$('#treetable').treegrid("getCheckedNodes");
+    nodes.forEach(n => {
+        assignFun.funCodes.push(n.id)
+    });
+    $.post("/fun/saverolefun",JSON.stringify(assignFun),function(result){
+        handleJsonResult(result,function(data){
+            toast("操作成功");
+            $('#roleFunDlg').dialog('close');
+        });
+    },"json");
+}
+</script>
+</body>
+</html>

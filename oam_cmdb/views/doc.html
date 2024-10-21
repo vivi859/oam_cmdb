@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>文档管理</title>
+{{template "header.tpl" .}}
+<style type="text/css">
+/*.mytable {
+    border-spacing: 0;
+    border-collapse: collapse;
+}
+.mytable th,.mytable td{border-top: 0;border-bottom: 1px solid #ededed;padding: 10px;}*/
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="pagenav">
+    资源管理 > 文档
+  </div>
+    <div id="toolbar" class="clear" style="margin-bottom: 10px;padding: 5px;">
+      <select id="condi-projId"><option value="">-选择项目-</option>
+        {{range $key, $val := .projItems}} <option value="{{$key}}">{{$val}}</option>{{end}}
+      </select>
+      <input type="text" id="condi-name" class="textbox" placeholder="请输入名称" maxlength="32">
+      <button class="btn btn-green" onclick="searchDoc()">查询</button>
+      <div class="fr">
+          <button class="btn btn-green" onclick="openEditDocDlg(-1)">新增</button>
+          <button class="btn btn-blue" onclick="openDocImportDlg()">导入</button>
+      </div>
+    </div>
+    <div class="bigtable">
+      <table id="doc-table" style="width: 100%;min-height: 600px;">
+      </table>
+    </div>
+</div>
+{{template "doc-common.tpl" .}}
+
+<script type="text/javascript">
+  var funcodes=["DOC_MGT:*"];
+$(document).ready(function() {
+  loadPerms(funcodes);
+  $('#doc-table').datagrid({
+        idField:'docId',
+        singleSelect:true,
+        fitColumns:true,
+        autoRowHeight:false,
+        url:'/doc/docpage',
+        border:false,
+        loadFilter:dataGridFilter,
+        scrollbarSize: 0,
+        pagination:true,
+        pageSize:15,
+        pageList:[15,30,50],
+        columns:[[
+            {field:'docId',title:'ID',hidden:true},
+            {field:'title',title:'标题',width:'30%',formatter:docNameFmt},
+            {field:'projId',title:'所属项目',width:'20%',formatter:docProjFmt},
+            {field:'createBy',title:'作者',width:'15%'},
+            {field:'updateTime',title:'最近修改时间',width:'20%'},
+            {field:'opt',title:'操作',width:'15%',fixed:true,align:'left',formatter:docActionFmt}
+        ]]
+    });
+
+    $('#doc-table').datagrid('getPanel').addClass("lines-bottom");
+    filterPermElements();
+});
+
+function searchDoc(){
+  var projId=parseInt($('#condi-projId').val());
+  var keyword=$('#condi-name').val();
+  var param={};
+  if(projId>0){
+      param.projId=projId;
+  }
+  if(keyword!=""){
+      param.keyword=keyword;
+  }
+  $('#doc-table').datagrid('load',param);
+}
+
+var projData={}
+function docProjFmt(value,row,index){
+  if(value==0){
+    return "";
+  }
+  if($.isEmptyObject(projData)){
+    $('#condi-projId option').each(function(){
+      if(this.value!="")
+        projData[this.value]=this.text;
+    });
+  }
+ // console.log(projData);
+   return projData[value]||""
+}
+</script>
+<script type="text/javascript" src="../static/js/doc.js"></script>
+</body>
+</html>

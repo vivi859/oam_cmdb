@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GO-OAM运维资源管理系统 - 登录</title>
+    {{template "header.tpl" .}}
+    <script>if(window.top !== window.self){ window.top.location = window.location;}</script>
+    <style>
+    body{ background-color: #f3f3f4;text-align: center;}
+    .login-box{
+        width: 300px;
+        margin: 120px auto;
+        text-align: left;
+    }
+    .logo{font-size: 2em;font-weight: 500; padding: 10px 0;text-align: center;color: rgb(138, 135, 135);}
+    .formDiv div{margin-bottom: 20px;}
+    </style>
+</head>
+
+<body>
+    <div class="login-box">
+        <p class="logo">
+            运维资源管理系统
+        </p>
+        <div class="formDiv">
+            <form method="post" id="frm" name="frm">
+                <div>
+                    <input name="uname" id="uname" autocomplete="true" class="easyui-textbox" 
+                    data-options="validateOnCreate:false,required:true,validType:'username',
+                    iconCls:'icon-man',width:'100%',height:38,prompt:'用户名',missingMessage:'请输入用户名'" autofocus>
+                </div>
+                <div>
+                    <input name="pwd" id="pwd" autocomplete="true" class="easyui-passwordbox" 
+                    data-options="validateOnCreate:false,required:true,validType:'password',
+                    iconCls:'icon-lock',prompt:'密码',width:'100%',height:38,missingMessage:'请输入密码'">
+                </div>
+                <div>
+                      <button type="button" onclick="doLogin()" id="btnLogin" class="btn btn-green" style="width: 100%;height: 32px;">登 录</button>
+                </div>
+            </form>
+        </div>
+    </div>
+<script type="text/javascript">
+    document.onkeydown = function (e) {
+        var theEvent = window.event || e;
+        var code = theEvent.keyCode || theEvent.which;
+        if (code == 13) {
+            $("#btnLogin").click();
+        }
+    }
+    function doLogin(){
+        var isValid = $('#frm').form('validate');
+        if(!isValid){
+            return;
+        }
+        var name=$('#uname').val();
+        var pwd=pwdencode($('#pwd').val());
+        $.ajax({
+            type: "POST",
+            url: "/login",
+            data: {uname:name,upwd:pwd},
+            success: function(data){
+                handleJsonResult(data,'/index');
+            }
+        });
+    }
+</script>
+</body>
+</html>

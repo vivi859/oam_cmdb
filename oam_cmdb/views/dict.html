@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>系统配置</title>
+{{template "header.tpl" .}}
+
+</head>
+<body>
+<div class="container">
+  <div class="pagenav">
+    系统管理 > 系统配置
+  </div>
+    <div class="bigtable">
+      <table id="dictGrid" style="width: 100%;min-height: 600px;">
+      </table>
+    </div>
+</div>
+
+<div title="编辑参数" class="easyui-dialog" id="dictDlg" style="width: 600px; height:500px;" 
+data-options="resizable:true,modal:true,top:50,closed:true,cache:false,buttons: [{
+    text:'保存',iconCls:'icon-ok',handler:save},
+    {text:'取消', handler:function(){
+       $('#dictFrm').form('clear')
+       $('#dictDlg').dialog('close');
+   }}]">
+   <div class="formDiv">
+    <form id="dictFrm" method="post">
+        <div class="inputctl"> 
+            <input type="hidden" id="itemId" name="itemId">
+            <input type="hidden" id="itemType" name="itemType">
+            <input name="itemName" id="itemName" class="easyui-textbox" 
+            data-options="required:true,validType:'maxLength[50]',label:'参数名：',width:'95%',labelWidth:'100px'">
+        </div>
+        <div class="inputctl"> 
+            <input name="itemValue" id="itemValue" class="easyui-textbox" style="min-height:80px",
+            data-options="multiline:true,required:true,validType:'maxLength[2000]',label:'参数值：',width:'95%',labelWidth:'100px'">
+        </div>
+    </form>
+    </div>
+</div>
+
+<script type="text/javascript">
+    $(document).ready(function() {
+        $('#dictGrid').datagrid({
+            idField:'itemId',
+            singleSelect:true,
+            fitColumns:true,
+            autoRowHeight:false,
+            url:'/dict/dictlist',
+            border:false,
+            loadFilter:dataGridNoPagerFilter,
+            scrollbarSize: 0,
+            pagination:false,
+            columns:[[
+                {field:'itemId',title:'ID',width:'15%'},
+                {field:'itemName',title:'参数名',width:'20%'},
+                {field:'itemValue',title:'参数值',width:'35%'},
+                {field:'updateTime',title:'最近修改时间',width:'20%'},
+                {field:'opt',title:'操作',width:'10%',align:'left',formatter:actionFmt}
+            ]]
+        });
+    
+        $('#dictGrid').datagrid('getPanel').addClass("lines-bottom");
+    });
+
+    function actionFmt(value,row,index){
+        if(row.itemId=='symmetric_key'){
+            return "";
+        }
+       
+        return '<a href="#" onclick="openEditDlg('+index+')" class="btn btn-green btn-xs">编辑</a>';
+    }
+
+    function openEditDlg(index){
+        $('#dictGrid').datagrid('selectRow',index);
+        var selectedRow=$('#dictGrid').datagrid('getSelected');
+        if(selectedRow!=null){
+            $('#itemId').val(selectedRow.itemId);
+            $('#itemType').val(selectedRow.itemType);
+            $('#itemName').textbox('setValue',selectedRow.itemName);
+            if(selectedRow.itemType==3){
+                var arr=selectedRow.itemValue.split(",");
+                $('#itemValue').textbox('options').height=28*arr.length;
+                $('#itemValue').textbox('setValue',arr.join("\n"));
+            }else{
+                $('#itemValue').textbox('setValue',selectedRow.itemValue);
+            }
+            $('#dictDlg').dialog('open');
+        }
+    }
+
+    function save(){
+        ajaxForm('#dictFrm','/dict/savedict',function(data){
+            alert("保存成功");
+            location.reload();
+        });
+    }
+</script>
+</body>
+</html>

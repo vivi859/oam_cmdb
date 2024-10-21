@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>项目浏览-运维文档系统</title>
+{{template "header.tpl" .}}
+<style type="text/css">
+.proj-panel-header{padding:10px 15px;border-top-width:3px}
+.proj-panel-body{padding:10px 15px;}
+.proj-panel-body .datagrid-row:hover{cursor: pointer;}
+#doc-table .datagrid-header-row, .datagrid-row {height: 42px;}
+.btn-del{
+    background-color: #f6f6f6;
+    border-color: #f6f6f6;
+    color: #ff561b;
+}
+.btn-del:hover,.btn-del:focus{
+    background-color: #ddd;
+    border-color: #ddd;
+}
+
+#proj-panel li{
+    width: auto;
+    height: 40px;
+    line-height: 40px;
+    vertical-align: middle;
+    padding: 2px 4px;
+    position: relative;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+</style>
+</head>
+<body>
+    <div class="row-container">
+        <div style="width:25%;padding-right:20px;" class="ibox">
+            <div class="ibox-title"><h5>项目列表<h5>
+                <div class="ibox-tools"><a href="#" id="linkAddProj" onclick="openProjDlg()" perm="PROJ_MGT:SAVE"><i class="fa fa-plus-square-o"></i></a></div>
+            </div>
+            <ul class="ibox-content" id="proj-panel">
+                {{range .projs}}
+                <li value="{{.ProjId}}"><i class="fa fa-folder-o margin-r5"></i>{{.ProjName}}</li>
+                {{end}}
+            </ul>
+        </div>
+        <div style="background-color: #fff;width:75%;padding: 15px;">
+            <div id="projTab" class="easyui-tabs" style="width:100%;min-height:570px;height:auto" data-options="plain:false,border:false,tabHeight:36"> 
+                <div title="账号" data-options="bodyCls:'pd20'" class="bigtable">
+                    <table class="easyui-datagrid" id="accountGrid" style="width:100%;min-height:550px"
+                    data-options="id:'accountGrid',idField:'accountId',fitColumns:true,singleSelect:true,border:false,autoRowHeight:true,nowrap:false,
+                    scrollbarSize:0,toolbar:'#account-table-tools',loadFilter:dataGridNoPagerFilter">
+                        <thead>
+                        <tr>
+                            <th data-options="field:'accountId',hidden:true">ID</th>
+                            <th data-options="field:'accountName',width:'20%'">名称</th>
+                            <th data-options="field:'fieldUser',width:'20%'">账号</th>
+                            <th data-options="field:'fieldUrl',width:'30%'">地址(URL)</th>
+                            <th data-options="field:'typeName',align:'center',width:'15%',sortable:true">类型</th>
+                            <th data-options="field:'opt',width:'15%',formatter: acctActionFmt">操作</th>
+                        </tr>
+                        </thead>
+                    </table>
+                </div>
+                <div title="文档" data-options="bodyCls:'pd20'" class="bigtable">
+                    <table class="easyui-datagrid" id="doc-table" style="width:100%;min-height:550px;"
+                    data-options="id:'doc-table',idField:'docId',fitColumns:true,singleSelect:true,border:false,autoRowHeight:false,toolbar:'#doc-table-tools',scrollbarSize:0">
+                        <thead>
+                        <tr>
+                            <th data-options="field:'docId',hidden:true">ID</th>
+                            <th data-options="field:'title',width:'50%',formatter: docNameFmt">标题</th>
+                            <th data-options="field:'createBy',width:'15%'">作者</th>
+                            <th data-options="field:'updateTime',align:'center',width:'22%'">最近修改时间</th>
+                            <th data-options="field:'opt',width:'13%',formatter: docActionFmt">操作</th>
+                        </tr>
+                        </thead>
+                    </table>
+                </div>
+                <div title="主机/应用" data-options="bodyCls:'pd20'" class="bigtable">
+                    <table class="easyui-treegrid" id="hostapp-treegrid" style="width:100%;min-height:550px;"
+                        data-options="idField:'id',treeField:'text',loadFilter:dataGridNoPagerFilter,toolbar:'#hostapp-tools'">
+                        <thead>
+                            <tr>
+                                <th data-options="field:'text',width:'30%',formatter:hostAppNodeTextFmt">名称</th>
+                                <th data-options="field:'uri',width:'30%'">地址/目录</th> 
+                                <th data-options="field:'port',width:'8%'">端口</th>
+                                <th data-options="field:'desc',width:'25%',formatter:tipFmt">其他</th>
+                                <th data-options="field:'originalId',width:'7%',align:'center',formatter:hostAppOptFmt">操作</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+
+                <div title="项目信息" data-options="bodyCls:'pd20'" class="bigtable">
+                    <div class="formDiv">
+                        <form id="projInfoFrm" name="projInfoFrm" method="post">
+                            <input type="hidden" id="projId" name="projId" />
+                            <input type="hidden" id="creatorId" name="creatorId" />
+                            <div class="inputctl"> 
+                                <input name="projName" class="easyui-textbox" style="height: 36px;"
+                                 data-options="required:true,validType:'maxLength[30]',label:'项目名称：',width:'50%',labelWidth:'85px'">
+                            </div>
+                            <div class="inputctl">
+                                <textarea name="projDesc" class="easyui-textbox" style="height: 60px;"
+                                 data-options="validType:'maxLength[500]',label:'项目描述：',width:'50%',labelWidth:'85px',multiline:true"></textarea>
+                            </div>
+                            <div class="inputctl">
+                                <button type="button" class="btn btn-green btn-big" perm="PROJ_MGT:SAVE" id="btnProjEdit" onclick="updateProj()" style="display: inline-block;margin-left:85px;min-width: 80px;">修 改</button>
+                                <button type="button" class="btn btn-gray btn-big" perm="PROJ_MGT:DEL" id="btnProjDel" onclick="delProj()" style="display: inline-block;margin-left:10px;min-width: 80px;">删 除</button>
+                            </div>
+                        </form>
+                        <table id="proj-member-list" class="easyui-datagrid" style="width:95%;min-height:180px" 
+                        data-options="method: 'post',toolbar:'#proj-member-list-toolbar',
+                        checkbox: true,border:false,singleSelect:true,autoRowHeight:false,showHeader:false,idField:'userId'">
+                            <thead>
+                                <tr>
+                                    <th data-options="field:'userId',hidden:true">id</th>
+                                    <th data-options="field:'userName',width:'25%',styler: function(value,row,index){
+                                            return 'padding-left:10px';
+                                    }">用户名</th>
+                                    <th data-options="field:'realName',align:'left',width:'60%'">姓名</th>
+                                    <th data-options="field:'opt',width:'15%',align:'right',formatter:memberActionFmt">操作</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+ <!-- 对话框,工具条 -->
+ <div id="doc-table-tools" style="text-align: right;">
+    <a href="javascript:void(0)" onclick="openEditDocDlg(-1)" id="link-newdoc" class="btn btn-green" perm="DOC_MGT:ADD">新增文档</a>
+    <a href="javascript:void(0)" onclick="openDocImportDlg()" class="btn btn-blue" perm="DOC_MGT:ADD">导入</a>
+</div>
+
+<div id="account-table-tools" style="text-align: right;background-color:#fdfdfd">
+    <button class="btn btn-green" perm="ACCOUNT_MGT:ADD" id="btnAddAccount" onclick="newAccount()" perm="ACCOUNT_MGT:ADD">新建账号</button>
+</div>
+
+<div id="hostapp-tools" style="text-align: right;">
+    <button class="btn btn-green" onclick="newHost(0)" perm="HOST_MGT:SAVE">新建主机</button>
+    <button class="btn btn-blue" onclick="newApp(0)" perm="APP_MGT:SAVE">新建应用</button>
+</div>
+
+<div id="proj-member-list-toolbar" style="text-align: right;border:0;background-color: #fff; margin-top: 15px;">
+   <button class="btn btn-green" onclick="openSelectProjMemberDlg()" perm="PROJ_MGT:MEMBER">添加成员</button>
+</div>
+
+<div title="新增项目" class="easyui-dialog formDiv" id="projDlg" style="width: 400px; min-height: 160px;" 
+data-options="resizable:true,modal:true,closed:true,top:50,cache:false,buttons: [{
+    text:'保存',iconCls:'icon-ok',handler:saveProj},
+    {text:'取消', handler:function(){
+       $('#projDlg').dialog('close');
+   }}]">
+    <form id="projFrm" method="post">
+        <div class="inputctl"> 
+            <input name="projName" class="easyui-textbox" data-options="validateOnCreate:false,required:true,maxLength:30,label:'项目名称：',width:'100%',labelWidth:'85px'">
+        </div>
+        <div class="inputctl">
+            <input name="projDesc" class="easyui-textbox" style="height:60px;" data-options="validateOnCreate:false,maxLength:500,label:'项目描述：',width:'100%',labelWidth:'85px',multiline:true">
+        </div>
+    </form>
+</div>
+
+<div title="选择项目成员" class="easyui-dialog" id="projChooseMemberDlg" style="width: 300px;padding-top:25px;min-height: 180px;text-align: center;"
+ data-options="modal:true,closed:true,cache:false,buttons: [{
+    text:'确认',iconCls:'icon-ok',handler:addProjMembers},
+    {text:'取消', handler:function(){
+       $('#projChooseMemberDlg').dialog('close');
+   }}]">
+    <input id="projChooseMember" name="projChooseMember" class="easyui-combobox" style="width:80%;"
+     data-options="require:true,multiple:true,editable:false,panelHeight:190,valueField: 'userId',textField: 'userName',loadFilter:dataGridNoPagerFilter">
+</div>
+
+<div class="easyui-dialog" id="accountDlg" style="width:600px;height:560px" data-options="title:'新增账号',closed: true,modal:true,top:'10%',
+buttons:[{text:'保存',iconCls:'icon-ok',handler:function(){
+    document.getElementById('dlgframe').contentWindow.saveAccount();
+}
+},{text:'取消',handler:function(){$('#accountDlg').dialog('close');}
+}]">
+    <iframe id="dlgframe" style="width:100%;height:99%;border:0;"></iframe>
+</div>
+
+<!-- 应用信息编辑窗口 -->
+<div title="编辑应用信息" class="easyui-dialog" id="appInfoDlg" style="width: 550px; height: 620px;" 
+data-options="modal:true,top:50,closed:true,cache:false,buttons: [{
+    text:'保存',iconCls:'icon-ok',handler:function(){
+      document.getElementById('appinfoframe').contentWindow.saveApp(
+        function(){
+          $('#hostapp-treegrid').treegrid('reload');
+          $('#appInfoDlg').dialog('close');
+      }
+        );
+    }},
+    {text:'取消', handler:function(){
+       $('#appInfoDlg').dialog('close');
+   }}]">
+   <iframe id="appinfoframe" style="width:100%;height:99%;border:0;"></iframe>
+</div>
+
+{{template "doc-common.tpl" .}}
+
+<!-- 主机信息编辑窗口 -->
+<div title="编辑主机信息" class="easyui-dialog" id="hostDlg" style="width: 600px; height: 610px;" 
+data-options="resizable:true,modal:true,top:50,closed:true,cache:false,buttons: [{
+    text:'保存',iconCls:'icon-ok',handler:function(){
+      document.getElementById('hostframe').contentWindow.saveHost(
+        function(){
+          $('#hostapp-treegrid').treegrid('reload');
+          $('#hostDlg').dialog('close');
+        });
+    }},
+    {text:'取消', handler:function(){
+       $('#hostDlg').dialog('close');
+   }}]">
+   <iframe id="hostframe" style="width:100%;height:99%;border:0;"></iframe>
+</div>
+<div id="relViewDlg" class="easyui-window" title="账号详情" style="width:500px;min-height:480px"
+data-options="collapsible:false,minimizable:false,maximizable:false,closed:true,draggable:false,modal:false">
+</div>
+<script>
+   // window.onresize=function(){ parent.changeFrameHeight();}
+    var funcodes=["ACCOUNT_MGT:*","PROJ_MGT:*","HOST_MGT:*"];
+
+    $(function(){
+        perms=loadPerms(funcodes);     
+        //表格格式修改
+        $('#doc-table').datagrid('getPanel').addClass("lines-bottom");
+        $('#proj-member-list').datagrid('getPanel').addClass("lines-bottom");
+        $('#accountGrid').datagrid('getPanel').addClass("lines-bottom");
+        //文档上传,如果文章标题为空先用文档名称填充
+        $('#docFile').on('change', function(e){
+            if($('#docTitle').val()==""){
+                var name = e.currentTarget.files[0].name;
+                var extIndex=name.lastIndexOf(".");
+                $('#docTitle').val(name.slice(0,extIndex));
+            }
+        });
+        //左侧项目列表单击事件
+        $('#proj-panel').on('click', "li",function(e){
+            $('#proj-panel li').removeClass('datagrid-row-selected');
+            $(this).addClass('datagrid-row-selected');
+            var pid=$(this).prop('value')
+            $.post("/project/detail",{projId:pid},function(result){
+            if(result.status==403){
+                showError(result.message);
+            }else if(result.status==200){
+                var projinfo=result.data;
+                $('#accountGrid').datagrid('options').url='/account/projaccounts';
+                $('#accountGrid').datagrid('load',{projId:pid});
+                $('#projTab').tabs('select',0);
+
+                $('#doc-table').datagrid('loadData',projinfo.docs||[]);
+                $('#proj-member-list').datagrid('loadData',projinfo.members||[]);
+                $('#projInfoFrm').form('load',projinfo);
+
+                $('#hostapp-treegrid').treegrid('options').url='/project/findhostandapptree';
+                $('#hostapp-treegrid').treegrid('load',{projId:pid});
+            }else{
+                showError(result.message);
+            }
+        },"json")
+        });
+
+        //触发第一个项目信息请求
+        $('#proj-panel li:first').trigger("click");
+        filterPermElements();
+    });
+
+    
+    function memberActionFmt(value,row,index){
+        var creatorId=$('#creatorId').val();
+        var text="";
+        if(row.userName=="root"){
+            text=text+ '<span class="label label-yellow margin-l5">超管</span>'
+        }
+        if(row.userId==creatorId){
+            text=text+ '<span class="label label-blue margin-l5">创建人</span>'
+        }
+        if(text==""){
+            text=permStr('PROJ_MGT:MEMBER','<button class="btn btn-del margin-r5 btn-xs" onclick="delProjMember('+row.userId+')" title="删除项目成员"><i class="fa fa-trash"></i></button>')
+        }
+        return text;
+    }
+
+    function hostAppNodeTextFmt(value,row,index){
+        if (row.type==0){
+            return "[主机]"+value;
+        } else if(row.type==1){
+            return "[应用]"+value;
+        }
+        return value;
+    }
+
+    function hostAppOptFmt(value,row,index){
+        if(row.type==0){
+            return '<a href="javascript:void(0)" onclick="newHost('+value+')" class="btn btn-green btn-xs">详细</a>'
+        }else if(row.type==1){
+            return '<a href="javascript:void(0)" onclick="newApp('+value+')" class="btn btn-green btn-xs">详细</a>'
+        }
+        return ""
+    }
+    
+
+    //打开新增项目成员窗口
+    function openSelectProjMemberDlg(){
+        var projId=$('#projId').val();
+        $('#projChooseMember').combobox('reload',"/project/selectablemembers?projId="+projId);
+        $('#projChooseMemberDlg').dialog('open')
+    }
+
+    function newAccount(){
+        var projId=$('#projId').val();
+        openNewAccountDlg(projId);
+    }
+
+    function newApp(opt){
+        var hostId=0;
+        var selectedRow=$('#hostapp-treegrid').treegrid('getSelected');
+  
+        if (selectedRow!=null){
+            if(selectedRow.type==0){
+                hostId=selectedRow.originalId;
+            }else{
+               var parentNode=$('#hostapp-treegrid').treegrid('getParent',selectedRow.id);
+              // console.log(parentNode)
+               if(parentNode!=null&&parentNode.type==0){
+                hostId=parentNode.originalId;
+               }
+            }
+        }
+  
+        var projId=$('#projId').val();
+        var url="/appinfo/appdetail?id="+opt+"&projId="+projId;
+        if(hostId>0){
+            url=url+"&hostId="+hostId;
+        }
+        document.getElementById("appinfoframe").src=url;
+        $('#appInfoDlg').dialog('setTitle',opt==0?'新增应用':'编辑应用');
+        $('#appInfoDlg').dialog('open');
+        $('#appInfoDlg').dialog('vcenter');
+    }
+
+    function newHost(opt){
+        var projId=$('#projId').val();
+        document.getElementById("hostframe").src="/host/hostdetail?id="+opt+"&projId="+projId;
+        $('#hostDlg').dialog('setTitle',opt==0?'新增主机':'编辑主机');
+        $('#hostDlg').dialog('open');
+        $('#hostDlg').dialog('vcenter');
+    }
+
+    //打开新增项目窗口
+    function openProjDlg(){
+        $('#projFrm').form('clear');
+        $('#projFrm').form('resetValidation')
+        $('#projDlg').dialog('open');
+        $('#projDlg').dialog('vcenter');
+    }
+
+    //添加项目成员请求
+    function addProjMembers(){
+        userIds=$('#projChooseMember').combobox('getValues');
+        //console.log("select ids:"+userIds.join(","));
+        var projId=$('#projId').val();
+        if(userIds.length>0){
+            $.post("/project/addmember",{'projId':projId,'userIds':userIds.join(",")},function(result){
+                handleJsonResult(result,function(data){
+                    var rows=$('#projChooseMember').combobox('getData');
+                    $.each(userIds,function(i,val){
+                        $.each(rows,function(j,row){
+                            if(val==row.userId){
+                                $('#proj-member-list').datagrid('appendRow',row)
+                            }
+                        })
+                    });
+                });
+            },"json");
+        }
+        $('#projChooseMemberDlg').dialog('close');
+        $('#projChooseMember').combobox('clear');
+    }
+
+    //删除项目成员
+    function delProjMember(userId){
+       var projId=$('#projId').val();
+       $.post("/project/delmember",{'projId':projId,'userId':userId},function(result){
+            handleJsonResult(result,function(data){
+                var $pmGrid=$('#proj-member-list')
+                var index=$pmGrid.datagrid('getRowIndex',userId)
+                $('#proj-member-list').datagrid('deleteRow',index);
+                toast("删除成功")
+            });
+       },"json");
+    }
+
+    //保存项目信息
+    function saveProj(){
+        ajaxForm('#projFrm','/project/save',function(data){
+            toast("保存成功")
+            $('#projDlg').dialog('close');
+            var $projPanel=$('#proj-panel')
+            var rowHTML='<li value="'+data.projId+'"><i class="fa fa-folder-o margin-r5"></i>'+data.projName+'</li>'
+            var row=$(rowHTML);
+            $projPanel.append(row);
+            row.trigger("click");
+            $('#projTab').tabs('select',3);
+        });
+    }
+
+    //修改项目信息
+    function updateProj(){
+        ajaxForm('#projInfoFrm','/project/save',function(data){
+            toast("修改成功")
+            $('#proj-panel li').each(function(){
+                if($(this).prop('value')==data.projId){
+                    $(this).contents()[1].nodeValue=data.projName;
+                }
+            });
+        });
+    }
+
+    function delProj(){
+        var projId=$('#projId').val();
+        $.messager.confirm('确认对话框', '操作不可恢复，确认要删除该项目吗?', function(r){
+                if (r){
+                    $.post("/project/delproject",{'projId':projId},function(result){
+                        handleJsonResult(result,function(data){
+                            toast("删除成功");
+                        location.reload();
+                        });
+                },"json");
+                }
+            });
+    }
+
+</script>
+<script type="text/javascript" src="../static/js/account.js"></script>
+<script type="text/javascript" src="../static/js/doc.js"></script>
+<script type="text/javascript" src="../static/js/jsencrypt.js"></script>
+</body>
+</html>

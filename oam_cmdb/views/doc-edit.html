@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>编辑文档-{{.doc.Title}}</title>
+{{template "header.tpl" .}}
+<link rel="stylesheet" href="../static/js/tui-editor/toastui-editor.min.css" />
+<style type="text/css">
+    body{text-align: center;padding: 0;}
+    #docWrapper{margin:0 auto;text-align:left; background-color: #fff;width:960px;box-shadow:0px 0px 8px #ddd;}
+    .toastui-editor-defaultUI{border-radius:0}
+    .toastui-editor-contents{font-family: "微软雅黑",Helvetica,Arial, sans-serif;}
+    #doc-title-div{padding: 10px 5px;border: solid #dadde6;border-width: 0 1px;}
+    #doc-title{height: 40px;width: 80%;font-size: 16px;border-width:0;padding-left: 10px;}
+    #doc-title:focus{outline: none;border: solid #dadde6;border-width: 0 0 0px 0;}
+</style>
+</head>
+<body>
+<div id="docWrapper">
+    <div id="doc-title-div">
+        <input type="hidden" id="docId" value="{{.doc.DocId}}">
+        <input type="text" id="doc-title" placeholder="请输入标题" maxlength="100" value="{{.doc.Title}}" autofocus>&nbsp;
+        <select id="projId" style="width: 18%;"><option value="">-选择项目-</option>
+            {{range $key, $val := .projs}} <option value="{{$key}}"{{if eq $key $.doc.ProjId}} selected="selected"{{end}}>{{$val}}</option>{{end}}
+        </select>
+    </div>
+    <div id="editor" style="width: 100%;min-height: 600px;"></div>
+</div>
+<script src="../static/js/tui-editor/toastui-editor-all.min.js"></script>
+<script src="../static/js/tui-editor/zh-cn.js"></script>
+
+<script>
+    document.addEventListener("keydown",ctrlS);
+    var uncommitted=false;
+    const {Editor}=toastui;
+    const editor = new Editor({
+        el: document.querySelector('#editor'),
+        height: (window.innerHeight-65)+"px",
+        minHeight:'600px',
+        initialEditType: 'wysiwyg',
+        previewStyle: 'vertical',
+        language: 'zh-CN',
+        placeholder:'内容编辑区',
+        autofocus:false,
+        initialValue:'{{.doc.Content}}',
+        hooks: {
+            addImageBlobHook: (fileOrBlob, callback) => {
+                var formData = new FormData()
+                formData.append('uploadfile', fileOrBlob, fileOrBlob.name)
+                //上传图片
+                uploadFile("/uploadimg",formData,function(data){
+                    callback(data,fileOrBlob.name);
+                })
+            },
+        },
+        events: {
+            change: function() { 
+                if(!uncommitted)
+                    uncommitted=true;
+                //console.log("内容改变");
+            }
+        }
+    });
+
+    function saveArticle(auto){
+        var title=$.trim($('#doc-title').val());
+        var content=$.trim(editor.getMarkdown());
+        if(title==""&&content==""){
+            return;
+        }
+        if(title==""){
+            title="无标题";
+        }
+        var param={};
+        param.title=title;
+        param.projId=parseInt($('#projId').val());
+        var docId=$('#docId').val();
+        if(docId!=""){
+            param.docId=parseInt(docId);
+        }
+        param.content=content;
+        $.ajax({
+            type: "POST",
+            url: "/doc/savedoc",
+            contentType: "application/json; charset=utf-8",
+            data:  JSON.stringify(param),
+            dataType: "json",
+            success: function (result) {
+                handleJsonResult(result,function(data){
+                    $('#docId').val(data.docId);
+                    uncommitted=false;
+                    //console.log(typeof data)
+                    parent.updateDocGrid(data);
+                    if(auto){
+                        $.messager.show({
+                            id:'toast-inner',
+                            msg:'自动保存成功',
+                            timeout:2000,
+                            border:false,
+                            showType:'fade',
+                            showSpeed:300,
+                            width:'120px',height:'42px',
+	                    });
+                    }else{
+                        $.messager.confirm('请确认', '保存成功,是否继续编辑', function(r){
+                            if (!r){
+                                parent.closeEditDocDlg();
+                            }
+                        });
+                    }
+                })
+            }
+        });
+    }
+    
+    function ctrlS(event)   {
+        //event.preventDefault();
+        if (event.ctrlKey == true && event.keyCode == 83) {
+            event.returnvalue = false;
+            saveArticle(false);
+        }
+    }
+
+    setInterval(function () {
+        //console.log("自动保存"+uncommitted);
+        if(!uncommitted){
+            return;
+        }
+        saveArticle(true);
+        }, 60000);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>主机管理</title>
+{{template "header.tpl" .}}
+<style type="text/css">
+.mytable {
+    border-spacing: 0;
+    border-collapse: collapse;
+}
+.mytable th,.mytable td{border-top: 0;border-bottom: 1px solid #ededed;padding: 10px;}
+.tooltip-content p{line-height:24px;}
+.tooltip-content ul{padding-left: 15px;margin:5px;min-height:40px;line-height:24px;}
+.tooltip-content ul li{list-style-type:decimal;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="pagenav">
+    资源管理 > 主机
+  </div>
+    <div id="toolbar" class="clear" style="margin-bottom: 10px;padding: 5px;">
+      <form style="display:inline-block" id="searchForm">
+      <select id="condi-os"><option value="">-选择操作系统-</option>
+      {{range $val := .osnames}} <option>{{$val}}</option>{{end}}
+      </select>
+      <select id="condi-type"><option value="">-选择类型-</option>
+      </select>
+
+      <select id="condi-proj"><option value="">-选择项目-</option>
+        {{range $key, $val := .projs}} <option value="{{$key}}">{{$val}}</option>{{end}}
+      </select>
+      <input type="text" id="condi-keyword" class="textbox" placeholder="请输入IP或名称" maxlength="50">
+      <input checked="checked" id="condi-normal" type="checkbox" /> 正常状态&nbsp;
+      <button class="btn btn-green" onclick="searchHost()" type="button">查询</button>
+      <button class="btn btn-gray" onclick="resetForm('searchForm')" type="button">清空</button>
+    </form>
+      <div class="fr">
+          <button class="btn btn-green" onclick="openHostDlg(0,0)" perm="HOST_MGT:SAVE">新增</button>
+          <button class="btn btn-gray" onclick="delHost(1)" perm="HOST_MGT:DEL">作废</button>
+          <button class="btn btn-gray" onclick="delHost(0)" perm="HOST_MGT:DEL">删除</button>
+      </div>
+    </div>
+    <div class="bigtable">
+      <table id="hostGrid" style="width: 100%;min-height: 600px;" >
+      </table>
+    </div>
+</div>
+<!-- 主机信息编辑窗口 -->
+<div title="编辑主机信息" class="easyui-dialog" id="hostDlg" style="width: 600px; height: 610px;" 
+data-options="resizable:true,modal:true,top:50,closed:true,cache:false,buttons:'#hostDlgBtnBar' ">
+   <iframe id="hostframe" style="width:100%;height:99%;border:0;"></iframe>
+</div>
+<div id="hostDlgBtnBar">
+	<a href="#" id="btnSave" class="easyui-linkbutton" data-options="iconCls:'icon-ok'" onclick="btnSaveClick()">保存</a>
+	<a href="#" id="btnCancel" class="easyui-linkbutton" data-options="iconCls:'icon-clear'" onclick="btnCancelClick()">取消</a>
+</div>
+<div title="连通测试" class="easyui-dialog pd10" id="netTestDlg" style="width: 500px; height: 500px;" 
+data-options="top:50,closed:true,cache:false">
+  <div>
+    <input size="22" type="text" id="testIp" class="textbox" placeholder="ip" maxlength="32">&nbsp;
+    <input size="5" type="number" id="testPort" class="textbox" placeholder="端口" min="1" max="65535">&nbsp;
+    <button class="btn btn-green" id="btnPing" onclick="doPing()">ping</button>&nbsp;
+    <button class="btn btn-green" id="btnPortTest" onclick="doPortTest()">端口测试</button>
+  </div>
+  <div style="display: none;line-height: 150%;" id="otherIpDiv"><label style="cursor:pointer" onclick="changeTestIp()" id="otherIp" class="label label-blue"></label></div>
+  <div style="height: 350px;margin-top:10px">
+    <textarea id="netTestResult" style="width:100%;height:100%;padding:5px;color:#666" readonly="true"></textarea>
+  </div>
+</div>
+<script type="text/javascript">
+ var funcodes=["HOST_MGT:*"];
+$(document).ready(function() {
+  loadPerms(funcodes);
+  $('#hostGrid').datagrid({
+        idField:'hostId',
+        singleSelect:true,
+        fitColumns:true,
+        autoRowHeight:false,
+        nowrap:false,
+        url:'/host/hostpage',
+        queryParams:{'justNormal':true},
+        border:false,
+        loadFilter:dataGridFilter,
+        scrollbarSize: 0,
+        pagination:true,
+        pageSize:15,
+        pageList:[15,30,50],
+        rowStyler: function(index,row){
+            if (row.isDeleted){
+                return 'color:#ccc;';
+            }
+        },
+       onLoadSuccess:function(data){
+            $(".datagrid-btable .hastip").tooltip({
+              position: 'left',
+              hideDelay:500,
+              content: function(){
+                var txt="";
+                $.ajax({
+                  url: '/host/queryappforhost',
+                  data:{id:$(this).data('id')},
+                  async:false,
+                  success:function(data){
+                    txt=data;
+                  }
+                });
+                return txt;
+              }, onShow: function(){
+                    var t = $(this);
+                    t.tooltip('tip').unbind().bind('mouseenter', function(){
+                        t.tooltip('show');
+                    }).bind('mouseleave', function(){
+                        t.tooltip('hide');
+                    });
+                }
+            });
+        }, 
+        columns:[[
+            {field:'hostId',title:'ID',hidden:true},
+            {field:'hostName',title:'名称',width:'16%'},
+            {field:'publicIp',title:'IP',width:'13%',formatter:ipFmt},
+            {field:'sshPort',title:'SSH端口',width:'7%'},
+            {field:'osName',title:'操作系统',width:'9%'},
+            {field:'projNames',title:'所属项目',width:'13%'},
+            {field:'hostType',title:'类型',width:'11%',formatter:typeFmt},
+            {field:'createTime',title:'创建时间',width:'12%',fixed:true},
+            {field:'isDeleted',title:'已废除',width:'6%',align:'center',formatter:boolFmt},
+            {field:'appName',title:'部署应用',width:'6%',align:'center',formatter:function(value,row,index){
+              return '<a href="#" class="hastip" data-id="'+row.hostId+'"><i class="fa fa-sitemap" aria-hidden="true" /></i></a>';
+            }},
+            {field:'opt',title:'操作',width:'7%',fixed:true,formatter:actionFmt}
+        ]]
+    });
+
+    $('#hostGrid').datagrid('getPanel').addClass("lines-bottom");
+   
+    var $condiType=$('#condi-type')
+    $.each(hostTypes, function( index, value ) {
+      $condiType.append(new Option(value.text, value.value));
+    });
+    filterPermElements();
+
+});
+
+//打开编辑框
+function openHostDlg(hostId,opt){
+  if(opt==0){
+    document.getElementById("hostframe").src="/host/hostdetail";
+    $('#hostDlg').dialog('setTitle','新增主机');
+    $('#btnSave').linkbutton('enable');
+  }else if(opt==1){
+    document.getElementById("hostframe").src="/host/hostdetail?id="+hostId;
+    $('#hostDlg').dialog('setTitle','编辑主机');
+    $('#btnSave').linkbutton('enable');
+  }else{
+    document.getElementById("hostframe").src="/host/hostdetail?id="+hostId;
+    $('#hostDlg').dialog('setTitle','查看主机');
+    $('#btnSave').linkbutton('disable');
+  }  
+  $('#hostDlg').dialog('open');
+}
+
+function openNetTestDlg(publicIp,internalIp,port){
+  if(publicIp==""&&internalIp==""){
+    showWarn("未配置ip地址");
+    return;
+  }
+  if(internalIp!=""){
+    $('#testIp').val(internalIp);
+    if(publicIp!=""){
+      $('#otherIpDiv').show();
+      $('#otherIp').text(publicIp);
+    }else{
+      $('#otherIpDiv').hide();
+      $('#otherIp').text("");
+    }
+  }else{
+    $('#testIp').val(publicIp);
+    $('#otherIpDiv').hide();
+  }
+  $('#testPort').val(port);
+  $('#netTestResult').val('');
+  $('#netTestDlg').dialog('open');
+}
+
+function actionFmt(value,row,index){
+  var netLink='&nbsp;<a href="#" onclick="openNetTestDlg(\''+row.publicIp+'\',\''+row.internalIp+'\',\''+(row.sshPort||"")+'\')" class="btn btn-blue btn-xs">连通测试</a>';
+  if(!row.isDeleted){
+      return '<a href="#" onclick="openHostDlg('+row.hostId+',1)" perms="HOST_MGT:SAVE" class="btn btn-green btn-xs">编辑</a>'+netLink;
+  }else{ 
+    return '<a href="#" onclick="openHostDlg('+row.hostId+',2)" perms="HOST_MGT:VIEW" class="btn btn-green btn-xs">查看</a>'+
+    '&nbsp;<a href="#" onclick="recover('+row.hostId+')" perms="HOST_MGT:SAVE" class="btn btn-kermesinus btn-xs">恢复</a>'+netLink;
+  }
+}
+
+function typeFmt(value,row,index){
+  var str="";
+  $.each(hostTypes,function(index,ele){
+    if(ele.value==value){
+      str=ele.text
+      return false;
+    }
+  });
+   return str;
+}
+
+function changeTestIp(){
+  var ip=$('#otherIp').text();
+  $('#testIp').val(ip);
+}
+
+function delHost(act){
+    var selectedRow=$('#hostGrid').datagrid('getSelected');
+    if(selectedRow!=null){
+        if(act==1&&selectedRow.isDeleted){
+             return;
+        }
+        let actTxt=act==0?"操作不可恢复,确认要删除该主机吗":"确认要废除该主机吗";
+        $.messager.confirm('确认对话框', actTxt, function(r){
+            if (r){
+                $.post("/host/delhost",{'id':selectedRow.hostId,'action':act},function(result){
+                    handleJsonResult(result,function(data){
+                        var index=$('#hostGrid').datagrid('getRowIndex',selectedRow);
+                        if(act==0){
+                            $('#hostGrid').datagrid('deleteRow',index);
+                        }else{
+                            $('#hostGrid').datagrid('reload');
+                        }
+                        toast("操作成功")
+                    });
+                },"json");
+            }
+        });
+    }
+}
+
+function searchHost(){
+  var osName=$('#condi-os').val();
+  var keyword=$('#condi-keyword').val();
+  var htype=$('#condi-type').val();
+  var param={};
+  if(osName!=""){
+      param.os=osName;
+  }
+  if (htype!=""){
+    param.htype=htype;
+  }
+  if(keyword!=""){
+    if(safeChar(keyword)){
+      param.keyword=$.trim(keyword);
+    }else{
+      showWarn("不允许特殊字符");
+      return;
+    }
+  }
+  var projId=$('#condi-proj').val();
+  if(projId!=""){
+    param.projId=projId;
+  }
+  var viewchk=$('#condi-normal').prop('checked');
+  if(viewchk){
+    param.justNormal=true;
+  }
+  $('#hostGrid').datagrid('load',param);
+}
+
+function recover(id){
+    $.messager.confirm('确认对话框', "确定要恢复该主机吗", function(r){
+            if (r){
+                $.post("/host/recoverhost",{'id':id},function(result){
+                    handleJsonResult(result,function(data){
+                        if(data){
+                            $('#hostGrid').datagrid('reload');
+                        }
+                        toast("操作成功")
+                    });
+                },"json");
+            }
+        });
+}
+
+function btnSaveClick(){
+      document.getElementById('hostframe').contentWindow.saveHost(
+        function(){
+          $('#hostGrid').datagrid('reload');
+          $('#hostDlg').dialog('close');
+        });
+    }
+function btnCancelClick(){
+    $('#hostDlg').dialog('close');
+}
+
+var isStop=false;
+var intervalId;
+function doPing(){
+  let ip=$('#testIp').val().trim();
+  if(ip==""){
+    return;
+  }
+  cmdStateChange(false);
+  //$('#netTestResult').val("");
+  $.post("/cmd/pinghost",{'ip':ip},function(result){
+		if(result.status==200){
+      $('#netTestResult').val(result.data.localIp+" -> "+ip+" waiting...")
+      let span=1000;
+      intervalId=setInterval(GetCmdResult,span,result.data.token);
+      setTimeout(() => { 
+        if(!isStop){
+          cmdStateChange(true);
+          try {
+            clearInterval(intervalId);
+          } catch (error) {}
+          appendMsg("End");
+        }
+      }, span*20);
+		}else{
+			$('#netTestResult').val(result.message);
+      cmdStateChange(true);
+		}
+  },"json");
+ 
+}
+
+function GetCmdResult(token){
+    $.get("/cmd/getcmdresult?token="+token,function(result){
+      if(result.status==200){
+        appendMsg(result.data);
+        clearInterval(intervalId);
+        cmdStateChange(true);
+      }
+    }).fail(function() {
+      alert( "error" );
+    });
+  }
+
+function doPortTest(){
+  let ip=$('#testIp').val().trim();
+  if(ip==""){
+    showWarn("请输入ip地址");
+    return;
+  }
+  let port=$('#testPort').val().trim();
+  if(port==""){
+    showWarn("请输入端口号");
+    return;
+  }
+  cmdStateChange(false);
+  $('#netTestResult').val(" Port connectivity test, waiting...")
+  $.post("/cmd/porttest",{'ip':ip,'port':port},function(result){
+		if(result.status==200){
+      if(result.data){
+        appendMsg("端口连接正常");
+        cmdStateChange(true);
+      }else{
+        appendMsg("端口连接失败");
+        cmdStateChange(true);
+      }
+		}else{
+			$('#netTestResult').val(result.message);
+      cmdStateChange(true);
+		}
+  },"json");
+ 
+}
+
+function cmdStateChange(stop){
+  $("#btnPing").prop("disabled",!stop);
+  $("#btnPortTest").prop("disabled",!stop);
+  isStop=stop;
+}
+
+function appendMsg(newMsg){
+  let msg=$('#netTestResult').val();
+  msg=msg+"\n"+newMsg;
+  $('#netTestResult').val(msg);
+}
+
+</script>
+</body>
+</html>
